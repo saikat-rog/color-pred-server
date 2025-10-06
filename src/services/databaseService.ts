@@ -1,0 +1,275 @@
+import { PrismaClient } from '../generated/prisma';
+import { User, OTPSession, RefreshToken } from '../generated/prisma';
+
+class DatabaseService {
+  private prisma: PrismaClient;
+
+  constructor() {
+    this.prisma = new PrismaClient();
+  }
+
+  // Initialize database connection
+  async connect(): Promise<void> {
+    try {
+      await this.prisma.$connect();
+      console.log('✅ Connected to PostgreSQL database');
+    } catch (error) {
+      console.error('❌ Failed to connect to database:', error);
+      throw error;
+    }
+  }
+
+  // Disconnect from database
+  async disconnect(): Promise<void> {
+    await this.prisma.$disconnect();
+  }
+
+  // User operations
+  async createUser(data: {
+    phoneNumber: string;
+    password: string;
+    isVerified?: boolean;
+    balance?: number;
+  }): Promise<User> {
+    return await this.prisma.user.create({
+      data: {
+        phoneNumber: data.phoneNumber,
+        password: data.password,
+        isVerified: data.isVerified ?? false,
+        balance: data.balance ?? 0,
+      },
+    });
+  }
+
+  async findUserByPhone(phoneNumber: string): Promise<User | null> {
+    return await this.prisma.user.findUnique({
+      where: {
+        phoneNumber,
+      },
+    });
+  }
+
+  async findUserById(id: number): Promise<User | null> {
+    return await this.prisma.user.findUnique({
+      where: {
+        id,
+      },
+    });
+  }
+
+  async updateUser(id: number, data: Partial<User>): Promise<User> {
+    return await this.prisma.user.update({
+      where: { id },
+      data,
+    });
+  }
+
+  async deleteUser(id: number): Promise<User> {
+    return await this.prisma.user.delete({
+      where: { id },
+    });
+  }
+
+  // OTP Session operations
+  async createOTPSession(data: {
+    phoneNumber: string;
+    otp: string;
+    expiresAt: Date;
+  }): Promise<OTPSession> {
+    // First, delete any existing OTP sessions for this phone number
+    await this.prisma.oTPSession.deleteMany({
+      where: {
+        phoneNumber: data.phoneNumber,
+      },
+    });
+
+    return await this.prisma.oTPSession.create({
+      data,
+    });
+  }
+
+  async findActiveOTPSession(phoneNumber: string): Promise<OTPSession | null> {
+    return await this.prisma.oTPSession.findFirst({
+      where: {
+        phoneNumber,
+        expiresAt: {
+          gt: new Date(),
+        },
+        isUsed: false,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+  }
+
+  async updateOTPSession(id: number, data: Partial<OTPSession>): Promise<OTPSession> {
+    return await this.prisma.oTPSession.update({
+      where: { id },
+      data,
+    });
+  }
+
+  async verifyOTP(phoneNumber: string, otp: string): Promise<{
+    success: boolean;
+    message: string;
+    session?: OTPSession;
+  }> {
+    const session = await this.findActiveOTPSession(phoneNumber);
+
+    if (!session) {
+      return {
+        success: false,
+        message: 'No active OTP session found. Please request a new OTP.',
+      };
+    }
+
+    if (session.isUsed) {
+      return {
+        success: false,
+        message: 'OTP has already been used.',
+      };
+    }
+
+    if (new Date() > session.expiresAt) {
+      await this.prisma.oTPSession.delete({ where: { id: session.id } });
+      return {
+        success: false,
+        message: 'OTP has expired. Please request a new one.',
+      };
+    }
+
+    if (session.attempts >= 3) {
+      await this.prisma.oTPSession.delete({ where: { id: session.id } });
+      return {
+        success: false,
+        message: 'Maximum OTP attempts exceeded. Please request a new OTP.',
+      };
+    }
+
+    // Increment attempts
+    await this.updateOTPSession(session.id, {
+      attempts: session.attempts + 1,
+    });
+
+    if (session.otp !== otp) {
+      return {
+        success: false,
+        message: `Invalid OTP. ${3 - (session.attempts + 1)} attempts remaining.`,
+      };
+    }
+
+    // Mark as used
+    const updatedSession = await this.updateOTPSession(session.id, {
+      isUsed: true,
+    });
+
+    return {
+      success: true,
+      message: 'OTP verified successfully',
+      session: updatedSession,
+    };
+  }
+
+  // Clean up expired OTP sessions
+  async cleanupExpiredOTPSessions(): Promise<number> {
+    const result = await this.prisma.oTPSession.deleteMany({
+      where: {
+        OR: [
+          {
+            expiresAt: {
+              lt: new Date(),
+            },
+          },
+          {
+            isUsed: true,
+          },
+        ],
+      },
+    });
+
+    return result.count;
+  }
+
+  // Refresh Token operations
+  async createRefreshToken(data: {
+    token: string;
+    userId: number;
+    expiresAt: Date;
+  }): Promise<RefreshToken> {
+    return await this.prisma.refreshToken.create({
+      data,
+    });
+  }
+
+  async findRefreshToken(token: string): Promise<RefreshToken | null> {
+    return await this.prisma.refreshToken.findUnique({
+      where: {
+        token,
+      },
+    });
+  }
+
+  async deleteRefreshToken(token: string): Promise<RefreshToken | null> {
+    try {
+      return await this.prisma.refreshToken.delete({
+        where: {
+          token,
+        },
+      });
+    } catch (error) {
+      return null;
+    }
+  }
+
+  async deleteExpiredRefreshTokens(): Promise<number> {
+    const result = await this.prisma.refreshToken.deleteMany({
+      where: {
+        expiresAt: {
+          lt: new Date(),
+        },
+      },
+    });
+
+    return result.count;
+  }
+
+  async deleteUserRefreshTokens(userId: number): Promise<number> {
+    const result = await this.prisma.refreshToken.deleteMany({
+      where: {
+        userId,
+      },
+    });
+
+    return result.count;
+  }
+
+  // Utility methods
+  async healthCheck(): Promise<boolean> {
+    try {
+      await this.prisma.$queryRaw`SELECT 1`;
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+}
+
+// Create a singleton instance
+const databaseService = new DatabaseService();
+
+// Setup cleanup intervals
+setInterval(async () => {
+  try {
+    const expiredOTP = await databaseService.cleanupExpiredOTPSessions();
+    const expiredTokens = await databaseService.deleteExpiredRefreshTokens();
+    
+    if (expiredOTP > 0 || expiredTokens > 0) {
+      console.log(`🧹 Cleanup: Removed ${expiredOTP} expired OTP sessions and ${expiredTokens} expired refresh tokens`);
+    }
+  } catch (error) {
+    console.error('Error during cleanup:', error);
+  }
+}, 5 * 60 * 1000); // Run every 5 minutes
+
+export { databaseService, DatabaseService };
