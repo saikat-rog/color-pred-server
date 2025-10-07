@@ -54,4 +54,32 @@ router.put('/bank-accounts/:id', userController.updateBankAccount.bind(userContr
  */
 router.delete('/bank-accounts/:id', userController.deleteBankAccount.bind(userController));
 
+// Withdrawal Request Management Routes
+
+/**
+ * @route   POST /api/user/withdrawal-requests
+ * @desc    Submit withdrawal request
+ * @access  Private
+ * @headers Authorization: Bearer <token>
+ * @body    { bankAccountId: number, amount: number }
+ */
+router.post('/withdrawal-requests', userController.submitWithdrawalRequest.bind(userController));
+
+/**
+ * @route   GET /api/user/withdrawal-requests
+ * @desc    Get user's withdrawal requests
+ * @access  Private
+ * @headers Authorization: Bearer <token>
+ */
+router.get('/withdrawal-requests', userController.getWithdrawalRequests.bind(userController));
+
+/**
+ * @route   DELETE /api/user/withdrawal-requests/:id
+ * @desc    Cancel withdrawal request (only if pending)
+ * @access  Private
+ * @headers Authorization: Bearer <token>
+ * @param   id - Withdrawal request ID
+ */
+router.delete('/withdrawal-requests/:id', userController.cancelWithdrawalRequest.bind(userController));
+
 export { router as userRoutes };

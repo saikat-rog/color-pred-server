@@ -21,6 +21,7 @@ model User {
   // Relations
   refreshTokens RefreshToken[]
   bankAccounts  BankAccount[]
+  withdrawalRequests WithdrawalRequest[]
 
   @@map("users")
 }
@@ -69,9 +70,33 @@ model BankAccount {
   updatedAt     DateTime @updatedAt @map("updated_at")
 
   // Relations
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  withdrawalRequests WithdrawalRequest[]
 
   @@index([userId])
   @@map("bank_accounts")
+}
+
+// Withdrawal request model for user withdrawal requests
+model WithdrawalRequest {
+  id              Int      @id @default(autoincrement())
+  userId          Int      @map("user_id")
+  bankAccountId   Int      @map("bank_account_id")
+  amount          Float
+  status          String   @default("pending") // pending, approved, rejected, processed
+  requestedAt     DateTime @default(now()) @map("requested_at")
+  processedAt     DateTime? @map("processed_at")
+  adminNotes      String?  @map("admin_notes")
+  transactionId   String?  @map("transaction_id")
+  rejectionReason String?  @map("rejection_reason")
+
+  // Relations
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bankAccount BankAccount @relation(fields: [bankAccountId], references: [id], onDelete: Restrict)
+
+  @@index([userId])
+  @@index([status])
+  @@index([requestedAt])
+  @@map("withdrawal_requests")
 }
 

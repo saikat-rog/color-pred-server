@@ -277,6 +277,201 @@ class UserController {
     }
   }
 
+  // Withdrawal Request Management Methods
+
+  /**
+   * Submit withdrawal request
+   */
+  async submitWithdrawalRequest(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = (req as any).user?.userId;
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          message: 'User not authenticated'
+        });
+        return;
+      }
+
+      const { bankAccountId, amount } = req.body;
+
+      // Validation
+      if (!bankAccountId || !amount) {
+        res.status(400).json({
+          success: false,
+          message: 'Bank account ID and amount are required'
+        });
+        return;
+      }
+
+      if (amount <= 0) {
+        res.status(400).json({
+          success: false,
+          message: 'Amount must be greater than 0'
+        });
+        return;
+      }
+
+      // Minimum withdrawal amount check
+      if (amount < 100) {
+        res.status(400).json({
+          success: false,
+          message: 'Minimum withdrawal amount is ₹100'
+        });
+        return;
+      }
+
+      // Get user's current balance
+      const user = await databaseService.findUserById(userId);
+      if (!user) {
+        res.status(404).json({
+          success: false,
+          message: 'User not found'
+        });
+        return;
+      }
+
+      // Check if user has sufficient balance
+      if (user.balance < amount) {
+        res.status(400).json({
+          success: false,
+          message: 'Insufficient balance'
+        });
+        return;
+      }
+
+      // Verify bank account belongs to user
+      const bankAccount = await databaseService.findBankAccountByIdAndUser(bankAccountId, userId);
+      if (!bankAccount) {
+        res.status(404).json({
+          success: false,
+          message: 'Bank account not found or does not belong to you'
+        });
+        return;
+      }
+
+      // Create withdrawal request
+      const withdrawalRequest = await databaseService.createWithdrawalRequest({
+        userId,
+        bankAccountId,
+        amount
+      });
+
+      // Deduct amount from user balance (pending withdrawal)
+      await databaseService.updateUserBalance(userId, user.balance - amount);
+
+      res.status(201).json({
+        success: true,
+        message: 'Withdrawal request submitted successfully',
+        data: withdrawalRequest
+      });
+
+    } catch (error) {
+      console.error('Error in submitWithdrawalRequest:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error'
+      });
+    }
+  }
+
+  /**
+   * Get user's withdrawal requests
+   */
+  async getWithdrawalRequests(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = (req as any).user?.userId;
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          message: 'User not authenticated'
+        });
+        return;
+      }
+
+      const withdrawalRequests = await databaseService.getUserWithdrawalRequests(userId);
+
+      res.status(200).json({
+        success: true,
+        message: 'Withdrawal requests retrieved successfully',
+        data: withdrawalRequests
+      });
+
+    } catch (error) {
+      console.error('Error in getWithdrawalRequests:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error'
+      });
+    }
+  }
+
+  /**
+   * Cancel withdrawal request (only if pending)
+   */
+  async cancelWithdrawalRequest(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = (req as any).user?.userId;
+      const requestId = parseInt(req.params.id || '0');
+
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          message: 'User not authenticated'
+        });
+        return;
+      }
+
+      if (isNaN(requestId)) {
+        res.status(400).json({
+          success: false,
+          message: 'Invalid withdrawal request ID'
+        });
+        return;
+      }
+
+      // Find withdrawal request
+      const withdrawalRequest = await databaseService.findWithdrawalRequestByIdAndUser(requestId, userId);
+      if (!withdrawalRequest) {
+        res.status(404).json({
+          success: false,
+          message: 'Withdrawal request not found or does not belong to you'
+        });
+        return;
+      }
+
+      // Check if request can be cancelled (only pending requests)
+      if (withdrawalRequest.status !== 'pending') {
+        res.status(400).json({
+          success: false,
+          message: `Cannot cancel withdrawal request with status: ${withdrawalRequest.status}`
+        });
+        return;
+      }
+
+      // Cancel the request
+      await databaseService.cancelWithdrawalRequest(requestId);
+
+      // Refund amount to user balance
+      const user = await databaseService.findUserById(userId);
+      if (user) {
+        await databaseService.updateUserBalance(userId, user.balance + withdrawalRequest.amount);
+      }
+
+      res.status(200).json({
+        success: true,
+        message: 'Withdrawal request cancelled successfully'
+      });
+
+    } catch (error) {
+      console.error('Error in cancelWithdrawalRequest:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error'
+      });
+    }
+  }
+
   private sanitizeUser(user: any): Omit<any, 'password'> {
     const { password, ...sanitizedUser } = user;
     return sanitizedUser;

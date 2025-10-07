@@ -354,6 +354,95 @@ class DatabaseService {
       },
     });
   }
+
+  // Withdrawal Request operations
+  async createWithdrawalRequest(data: {
+    userId: number;
+    bankAccountId: number;
+    amount: number;
+  }): Promise<any> {
+    return await this.prisma.withdrawalRequest.create({
+      data: {
+        userId: data.userId,
+        bankAccountId: data.bankAccountId,
+        amount: data.amount,
+        status: 'pending',
+      },
+      include: {
+        bankAccount: {
+          select: {
+            accountNumber: true,
+            accountName: true,
+            ifscCode: true,
+            upiId: true,
+          },
+        },
+      },
+    });
+  }
+
+  async getUserWithdrawalRequests(userId: number): Promise<any[]> {
+    return await this.prisma.withdrawalRequest.findMany({
+      where: {
+        userId,
+      },
+      include: {
+        bankAccount: {
+          select: {
+            accountNumber: true,
+            accountName: true,
+            ifscCode: true,
+            upiId: true,
+          },
+        },
+      },
+      orderBy: {
+        requestedAt: 'desc',
+      },
+    });
+  }
+
+  async findWithdrawalRequestByIdAndUser(requestId: number, userId: number): Promise<any> {
+    return await this.prisma.withdrawalRequest.findFirst({
+      where: {
+        id: requestId,
+        userId: userId,
+      },
+      include: {
+        bankAccount: {
+          select: {
+            accountNumber: true,
+            accountName: true,
+            ifscCode: true,
+            upiId: true,
+          },
+        },
+      },
+    });
+  }
+
+  async updateUserBalance(userId: number, newBalance: number): Promise<any> {
+    return await this.prisma.user.update({
+      where: {
+        id: userId,
+      },
+      data: {
+        balance: newBalance,
+      },
+    });
+  }
+
+  async cancelWithdrawalRequest(requestId: number): Promise<any> {
+    return await this.prisma.withdrawalRequest.update({
+      where: {
+        id: requestId,
+      },
+      data: {
+        status: 'cancelled',
+        processedAt: new Date(),
+      },
+    });
+  }
 }
 
 // Create a singleton instance
