@@ -357,13 +357,23 @@ class UserController {
         amount
       });
 
-      // Deduct amount from user balance (pending withdrawal)
-      await databaseService.updateUserBalance(userId, user.balance - amount);
+      // Deduct balance and create transaction record
+      const { user: updatedUser, transaction } = await databaseService.updateUserBalanceWithTransaction(
+        userId,
+        -amount, // Negative amount for withdrawal
+        'withdrawal',
+        `Withdrawal request to ${bankAccount.accountName} (${bankAccount.accountNumber})`,
+        withdrawalRequest.id.toString()
+      );
 
       res.status(201).json({
         success: true,
         message: 'Withdrawal request submitted successfully',
-        data: withdrawalRequest
+        data: {
+          withdrawalRequest,
+          transaction,
+          newBalance: updatedUser.balance
+        }
       });
 
     } catch (error) {
@@ -452,19 +462,123 @@ class UserController {
       // Cancel the request
       await databaseService.cancelWithdrawalRequest(requestId);
 
-      // Refund amount to user balance
-      const user = await databaseService.findUserById(userId);
-      if (user) {
-        await databaseService.updateUserBalance(userId, user.balance + withdrawalRequest.amount);
-      }
+      // Refund amount and create transaction record
+      const { user: updatedUser, transaction } = await databaseService.updateUserBalanceWithTransaction(
+        userId,
+        withdrawalRequest.amount, // Positive amount for refund
+        'refund',
+        `Refund for cancelled withdrawal request to ${withdrawalRequest.bankAccount.accountName}`,
+        requestId.toString()
+      );
 
       res.status(200).json({
         success: true,
-        message: 'Withdrawal request cancelled successfully'
+        message: 'Withdrawal request cancelled successfully',
+        data: {
+          refundedAmount: withdrawalRequest.amount,
+          transaction,
+          newBalance: updatedUser.balance
+        }
       });
 
     } catch (error) {
       console.error('Error in cancelWithdrawalRequest:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error'
+      });
+    }
+  }
+
+  // Transaction Management Methods
+
+  /**
+   * Get user's transaction history
+   */
+  async getTransactions(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = (req as any).user?.userId;
+      const limit = parseInt(req.query.limit as string) || 50;
+      const offset = parseInt(req.query.offset as string) || 0;
+
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          message: 'User not authenticated'
+        });
+        return;
+      }
+
+      const transactions = await databaseService.getUserTransactions(userId, limit, offset);
+
+      res.status(200).json({
+        success: true,
+        message: 'Transactions retrieved successfully',
+        data: transactions
+      });
+
+    } catch (error) {
+      console.error('Error in getTransactions:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error'
+      });
+    }
+  }
+
+  /**
+   * Add recharge to user account
+   */
+  async addRecharge(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = (req as any).user?.userId;
+      const { amount, transactionId, description } = req.body;
+
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          message: 'User not authenticated'
+        });
+        return;
+      }
+
+      if (!amount || amount <= 0) {
+        res.status(400).json({
+          success: false,
+          message: 'Valid amount is required'
+        });
+        return;
+      }
+
+      if (amount < 100) {
+        res.status(400).json({
+          success: false,
+          message: 'Minimum recharge amount is ₹100'
+        });
+        return;
+      }
+
+      // Add recharge and create transaction record
+      const { user: updatedUser, transaction } = await databaseService.updateUserBalanceWithTransaction(
+        userId,
+        amount, // Positive amount for recharge
+        'recharge',
+        description || 'Manual recharge',
+        transactionId
+      );
+
+      res.status(200).json({
+        success: true,
+        message: 'Recharge added successfully',
+        data: {
+          rechargeAmount: amount,
+          transaction,
+          newBalance: updatedUser.balance
+        }
+      });
+
+    } catch (error) {
+      console.error('Error in addRecharge:', error);
       res.status(500).json({
         success: false,
         message: 'Internal server error'

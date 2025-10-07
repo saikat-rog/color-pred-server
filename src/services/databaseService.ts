@@ -443,6 +443,103 @@ class DatabaseService {
       },
     });
   }
+
+  // Transaction operations
+  async createTransaction(data: {
+    userId: number;
+    type: string;
+    amount: number;
+    status?: string;
+    description?: string;
+    referenceId?: string;
+    balanceBefore: number;
+    balanceAfter: number;
+  }): Promise<any> {
+    return await this.prisma.transaction.create({
+      data: {
+        userId: data.userId,
+        type: data.type as any,
+        amount: data.amount,
+        status: (data.status as any) || 'completed',
+        description: data.description || null,
+        referenceId: data.referenceId || null,
+        balanceBefore: data.balanceBefore,
+        balanceAfter: data.balanceAfter,
+      },
+    });
+  }
+
+  async getUserTransactions(userId: number, limit: number = 50, offset: number = 0): Promise<any[]> {
+    return await this.prisma.transaction.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      skip: offset,
+    });
+  }
+
+  async getTransactionById(transactionId: number): Promise<any> {
+    return await this.prisma.transaction.findUnique({
+      where: { id: transactionId },
+      include: { user: true },
+    });
+  }
+
+  async updateTransactionStatus(transactionId: number, status: string, description?: string): Promise<any> {
+    return await this.prisma.transaction.update({
+      where: { id: transactionId },
+      data: {
+        status: status as any,
+        description: description || null,
+        updatedAt: new Date(),
+      },
+    });
+  }
+
+  // Updated balance update method with transaction recording
+  async updateUserBalanceWithTransaction(
+    userId: number, 
+    amount: number, 
+    type: string, 
+    description?: string,
+    referenceId?: string
+  ): Promise<{ user: any; transaction: any }> {
+    return await this.prisma.$transaction(async (prisma) => {
+      // Get current user balance
+      const currentUser = await prisma.user.findUnique({
+        where: { id: userId }
+      });
+
+      if (!currentUser) {
+        throw new Error('User not found');
+      }
+
+      const balanceBefore = currentUser.balance;
+      const balanceAfter = balanceBefore + amount;
+
+      // Update user balance
+      const updatedUser = await prisma.user.update({
+        where: { id: userId },
+        data: { balance: balanceAfter }
+      });
+
+      // Create transaction record
+      const transaction = await prisma.transaction.create({
+        data: {
+          userId,
+          type: type as any,
+          amount: Math.abs(amount), // Store as positive value
+          status: 'completed',
+          description: description || null,
+          referenceId: referenceId || null,
+          balanceBefore,
+          balanceAfter
+        }
+      });
+
+      return { user: updatedUser, transaction };
+    });
+  }
 }
 
 // Create a singleton instance

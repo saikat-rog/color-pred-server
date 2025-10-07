@@ -22,6 +22,7 @@ model User {
   refreshTokens RefreshToken[]
   bankAccounts  BankAccount[]
   withdrawalRequests WithdrawalRequest[]
+  transactions  Transaction[]
 
   @@map("users")
 }
@@ -99,4 +100,45 @@ model WithdrawalRequest {
   @@index([requestedAt])
   @@map("withdrawal_requests")
 }
+
+// Transaction model for tracking all financial activities
+model Transaction {
+  id              Int               @id @default(autoincrement())
+  userId          Int               @map("user_id")
+  type            TransactionType
+  amount          Float
+  status          TransactionStatus @default(pending)
+  description     String?
+  referenceId     String?           @map("reference_id") // Can link to withdrawal request, recharge, etc.
+  balanceBefore   Float             @map("balance_before")
+  balanceAfter    Float             @map("balance_after")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([type])
+  @@index([status])
+  @@index([createdAt])
+  @@map("transactions")
+}
+
+enum TransactionType {
+  withdrawal
+  recharge
+  bonus
+  refund
+  penalty
+}
+
+enum TransactionStatus {
+  pending
+  completed
+  failed
+  cancelled
+}
+
+
 

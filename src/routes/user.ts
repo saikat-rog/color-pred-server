@@ -82,4 +82,24 @@ router.get('/withdrawal-requests', userController.getWithdrawalRequests.bind(use
  */
 router.delete('/withdrawal-requests/:id', userController.cancelWithdrawalRequest.bind(userController));
 
+// Transaction Management Routes
+
+/**
+ * @route   GET /api/user/transactions
+ * @desc    Get user's transaction history
+ * @access  Private
+ * @headers Authorization: Bearer <token>
+ * @query   limit (optional, default: 50), offset (optional, default: 0)
+ */
+router.get('/transactions', userController.getTransactions.bind(userController));
+
+/**
+ * @route   POST /api/user/recharge
+ * @desc    Add recharge to user account
+ * @access  Private
+ * @headers Authorization: Bearer <token>
+ * @body    { amount: number, transactionId?: string, description?: string }
+ */
+router.post('/recharge', userController.addRecharge.bind(userController));
+
 export { router as userRoutes };

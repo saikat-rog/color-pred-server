@@ -46,7 +46,9 @@ app.get('/', (req, res) => {
       deleteBankAccount: 'DELETE /api/user/bank-accounts/:id',
       submitWithdrawal: 'POST /api/user/withdrawal-requests',
       getWithdrawals: 'GET /api/user/withdrawal-requests',
-      cancelWithdrawal: 'DELETE /api/user/withdrawal-requests/:id'
+      cancelWithdrawal: 'DELETE /api/user/withdrawal-requests/:id',
+      getTransactions: 'GET /api/user/transactions',
+      addRecharge: 'POST /api/user/recharge'
     }
   });
 });
