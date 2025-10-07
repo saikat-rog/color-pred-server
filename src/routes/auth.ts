@@ -72,6 +72,22 @@ router.post('/refresh-token', authLimiter, authController.refreshToken.bind(auth
  */
 router.post('/logout', authController.logout.bind(authController));
 
+/**
+ * @route   POST /api/auth/password-reset/initiate
+ * @desc    Initiate password reset by sending OTP
+ * @access  Public
+ * @body    { phoneNumber: string }
+ */
+router.post('/password-reset/initiate', otpLimiter, authController.initiatePasswordReset.bind(authController));
+
+/**
+ * @route   POST /api/auth/password-reset/complete
+ * @desc    Complete password reset by verifying OTP and setting new password
+ * @access  Public
+ * @body    { phoneNumber: string, otp: string, newPassword: string }
+ */
+router.post('/password-reset/complete', authLimiter, authController.completePasswordReset.bind(authController));
+
 // Protected routes (authentication required)
 
 /**

@@ -388,6 +388,158 @@ class AuthController {
     }
   }
 
+  /**
+   * Step 1: Initiate password reset by sending OTP
+   */
+  async initiatePasswordReset(req: Request, res: Response): Promise<void> {
+    try {
+      const { phoneNumber }: { phoneNumber: string } = req.body;
+
+      if (!phoneNumber) {
+        res.status(400).json({
+          success: false,
+          message: 'Phone number is required'
+        });
+        return;
+      }
+
+      // Clean and validate phone number
+      const cleanPhone = this.cleanPhoneNumber(phoneNumber);
+      if (!this.isValidPhoneNumber(cleanPhone)) {
+        res.status(400).json({
+          success: false,
+          message: 'Please enter a valid 10-digit Indian mobile number'
+        });
+        return;
+      }
+
+      // Check if user exists
+      const existingUser = await databaseService.findUserByPhone(cleanPhone);
+      if (!existingUser) {
+        res.status(404).json({
+          success: false,
+          message: 'No account found with this phone number'
+        });
+        return;
+      }
+
+      // Send OTP using cleaned phone number
+      const otpResult = await otpService.sendOTP(cleanPhone);
+      
+      if (!otpResult.success) {
+        res.status(400).json({
+          success: false,
+          message: otpResult.message
+        });
+        return;
+      }
+
+      const response: SignupResponse = {
+        success: true,
+        message: 'OTP sent successfully for password reset',
+        data: {
+          phoneNumber: cleanPhone,
+          otpSent: true
+        }
+      };
+
+      // Include OTP in development mode
+      if (config.nodeEnv === 'development' && otpResult.otp) {
+        (response.data as any).otp = otpResult.otp;
+      }
+
+      res.status(200).json(response);
+    } catch (error) {
+      console.error('Error in initiatePasswordReset:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error'
+      });
+    }
+  }
+
+  /**
+   * Step 2: Complete password reset by verifying OTP and setting new password
+   */
+  async completePasswordReset(req: Request, res: Response): Promise<void> {
+    try {
+      const { phoneNumber, otp, newPassword }: { 
+        phoneNumber: string; 
+        otp: string; 
+        newPassword: string; 
+      } = req.body;
+
+      if (!phoneNumber || !otp || !newPassword) {
+        res.status(400).json({
+          success: false,
+          message: 'Phone number, OTP, and new password are required'
+        });
+        return;
+      }
+
+      // Clean and validate phone number
+      const cleanPhone = this.cleanPhoneNumber(phoneNumber);
+      if (!this.isValidPhoneNumber(cleanPhone)) {
+        res.status(400).json({
+          success: false,
+          message: 'Please enter a valid 10-digit Indian mobile number'
+        });
+        return;
+      }
+
+      // Validate password strength
+      if (!this.isValidPassword(newPassword)) {
+        res.status(400).json({
+          success: false,
+          message: 'Password must be at least 8 characters long and contain at least one number'
+        });
+        return;
+      }
+
+      // Check if user exists
+      const existingUser = await databaseService.findUserByPhone(cleanPhone);
+      if (!existingUser) {
+        res.status(404).json({
+          success: false,
+          message: 'No account found with this phone number'
+        });
+        return;
+      }
+
+      // Verify OTP using database service
+      const otpVerification = await databaseService.verifyOTP(cleanPhone, otp);
+      if (!otpVerification.success) {
+        res.status(400).json({
+          success: false,
+          message: otpVerification.message
+        });
+        return;
+      }
+
+      // Hash new password
+      const hashedPassword = await bcrypt.hash(newPassword, config.security.bcryptSaltRounds);
+
+      // Update user password in database
+      await databaseService.updateUser(existingUser.id, {
+        password: hashedPassword
+      });
+
+      // Invalidate all existing refresh tokens for this user (force re-login)
+      await databaseService.deleteUserRefreshTokens(existingUser.id);
+
+      res.status(200).json({
+        success: true,
+        message: 'Password reset successfully. Please login with your new password.'
+      });
+    } catch (error) {
+      console.error('Error in completePasswordReset:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error'
+      });
+    }
+  }
+
   // Helper methods
   private cleanPhoneNumber(phoneNumber: string): string {
     let cleaned = phoneNumber.replace(/\D/g, '');

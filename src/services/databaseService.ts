@@ -57,6 +57,15 @@ class DatabaseService {
     });
   }
 
+  async findUserByIdWithIncludes(id: number, includeOptions: any = {}): Promise<any> {
+    return await this.prisma.user.findUnique({
+      where: {
+        id,
+      },
+      include: includeOptions,
+    });
+  }
+
   async updateUser(id: number, data: Partial<User>): Promise<User> {
     return await this.prisma.user.update({
       where: { id },
@@ -252,6 +261,98 @@ class DatabaseService {
     } catch (error) {
       return false;
     }
+  }
+
+  // Bank Account operations
+  async getUserBankAccounts(userId: number): Promise<any[]> {
+    return await this.prisma.bankAccount.findMany({
+      where: {
+        userId,
+      },
+      orderBy: [
+        { isDefault: 'desc' },
+        { createdAt: 'asc' }
+      ]
+    });
+  }
+
+  async createBankAccount(data: {
+    userId: number;
+    accountNumber: string;
+    accountName: string;
+    ifscCode: string;
+    upiId?: string;
+    isDefault?: boolean;
+  }): Promise<any> {
+    // If this is being set as default, unset other defaults first
+    if (data.isDefault) {
+      await this.prisma.bankAccount.updateMany({
+        where: {
+          userId: data.userId,
+          isDefault: true,
+        },
+        data: {
+          isDefault: false,
+        },
+      });
+    }
+
+    return await this.prisma.bankAccount.create({
+      data: {
+        userId: data.userId,
+        accountNumber: data.accountNumber,
+        accountName: data.accountName,
+        ifscCode: data.ifscCode,
+        upiId: data.upiId || null,
+        isDefault: data.isDefault || false,
+      },
+    });
+  }
+
+  async findBankAccountByIdAndUser(bankAccountId: number, userId: number): Promise<any> {
+    return await this.prisma.bankAccount.findFirst({
+      where: {
+        id: bankAccountId,
+        userId: userId,
+      },
+    });
+  }
+
+  async updateBankAccount(bankAccountId: number, userId: number, data: {
+    accountNumber?: string;
+    accountName?: string;
+    ifscCode?: string;
+    upiId?: string;
+    isDefault?: boolean;
+  }): Promise<any> {
+    // If this is being set as default, unset other defaults first
+    if (data.isDefault) {
+      await this.prisma.bankAccount.updateMany({
+        where: {
+          userId: userId,
+          isDefault: true,
+          id: { not: bankAccountId },
+        },
+        data: {
+          isDefault: false,
+        },
+      });
+    }
+
+    return await this.prisma.bankAccount.update({
+      where: {
+        id: bankAccountId,
+      },
+      data,
+    });
+  }
+
+  async deleteBankAccount(bankAccountId: number): Promise<any> {
+    return await this.prisma.bankAccount.delete({
+      where: {
+        id: bankAccountId,
+      },
+    });
   }
 }
 

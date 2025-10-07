@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import { config } from './config';
 import { authRoutes } from './routes/auth';
+import { userRoutes } from './routes/user';
 import { databaseService } from './services/databaseService';
 
 // Initialize Express app
@@ -24,7 +25,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Routes
 app.get('/', (req, res) => {
   res.json({
-    message: 'Color Prediction API - Authentication Ready! 🎮',
+    message: 'Color Game API Ready!',
     status: 'active',
     version: '1.0.0',
     environment: config.nodeEnv,
@@ -34,14 +35,22 @@ app.get('/', (req, res) => {
       login: 'POST /api/auth/login',
       refreshToken: 'POST /api/auth/refresh-token',
       logout: 'POST /api/auth/logout',
+      passwordResetInitiate: 'POST /api/auth/password-reset/initiate',
+      passwordResetComplete: 'POST /api/auth/password-reset/complete',
       profile: 'GET /api/auth/profile',
-      verifyToken: 'GET /api/auth/verify-token'
+      verifyToken: 'GET /api/auth/verify-token',
+      updateProfile: 'PUT /api/user/profile',
+      getBankAccounts: 'GET /api/user/bank-accounts',
+      addBankAccount: 'POST /api/user/bank-accounts',
+      updateBankAccount: 'PUT /api/user/bank-accounts/:id',
+      deleteBankAccount: 'DELETE /api/user/bank-accounts/:id'
     }
   });
 });
 
 // API Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/user', userRoutes);
 
 // 404 handler
 app.use((req, res) => {
@@ -70,11 +79,9 @@ async function startServer() {
     await databaseService.connect();
     
     app.listen(PORT, () => {
-      console.log(`🚀 Color Prediction Server running on port ${PORT}`);
-      console.log(`🔐 Authentication system ready!`);
-      console.log(`🗄️ PostgreSQL database connected!`);
+      console.log(`Color game Server running on port ${PORT}`);
+      console.log(`Database connected!`);
       console.log(`🌍 Environment: ${config.nodeEnv}`);
-      console.log(`📋 API Documentation: http://localhost:${PORT}/`);
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error);
