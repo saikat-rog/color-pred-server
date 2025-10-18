@@ -23,6 +23,7 @@ model User {
   bankAccounts  BankAccount[]
   withdrawalRequests WithdrawalRequest[]
   transactions  Transaction[]
+  bets          Bet[]
 
   @@map("users")
 }
@@ -131,6 +132,8 @@ enum TransactionType {
   bonus
   refund
   penalty
+  bet_debit
+  bet_win_credit
 }
 
 enum TransactionStatus {
@@ -140,5 +143,70 @@ enum TransactionStatus {
   cancelled
 }
 
+enum Color {
+  green
+  purple
+  red
+}
 
+// Game settings model for configurable parameters
+model GameSettings {
+  id                Int      @id @default(autoincrement())
+  periodDuration    Int      @default(180) @map("period_duration") // in seconds (3 minutes)
+  bettingDuration   Int      @default(150) @map("betting_duration") // in seconds (2:30 minutes)
+  winMultiplier     Float    @default(1.8) @map("win_multiplier") // multiplier for winning bets
+  minBetAmount      Float    @default(10) @map("min_bet_amount")
+  maxBetAmount      Float    @default(10000000000) @map("max_bet_amount")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@map("game_settings")
+}
+
+// Game period model
+model GamePeriod {
+  id              Int       @id @default(autoincrement())
+  periodId        String    @unique @map("period_id") // Format: YYYYMMDD001
+  startTime       DateTime  @map("start_time")
+  endTime         DateTime  @map("end_time")
+  bettingEndTime  DateTime  @map("betting_end_time") // endTime - 30 seconds
+  status          String    @default("active") // active, betting_closed, completed
+  winningColor    Color?    @map("winning_color")
+  totalGreenBets  Float     @default(0) @map("total_green_bets")
+  totalPurpleBets Float     @default(0) @map("total_purple_bets")
+  totalRedBets    Float     @default(0) @map("total_red_bets")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  completedAt     DateTime? @map("completed_at")
+
+  // Relations
+  bets Bet[]
+
+  @@index([periodId])
+  @@index([status])
+  @@index([startTime])
+  @@map("game_periods")
+}
+
+// Bet model
+model Bet {
+  id              Int        @id @default(autoincrement())
+  userId          Int        @map("user_id")
+  periodId        String     @map("period_id")
+  gamePeriodId    Int        @map("game_period_id")
+  color           Color
+  amount          Float
+  status          String     @default("pending") // pending, won, lost
+  winAmount       Float?     @map("win_amount")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  settledAt       DateTime?  @map("settled_at")
+
+  // Relations
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gamePeriod  GamePeriod @relation(fields: [gamePeriodId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([periodId])
+  @@index([gamePeriodId])
+  @@index([status])
+  @@map("bets")
+}
 
