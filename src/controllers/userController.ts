@@ -567,6 +567,11 @@ class UserController {
         transactionId
       );
 
+      // Process referral bonus if applicable
+      // This needs to be imported from gameService
+      const { gameService } = await import('../services/gameService');
+      await gameService.processReferralBonus(userId, amount);
+
       res.status(200).json({
         success: true,
         message: 'Recharge added successfully',

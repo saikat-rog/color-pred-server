@@ -7,6 +7,8 @@ import {
   getPeriodHistory,
   getGameSettings,
   updateGameSettings,
+  getReferralInfo,
+  getReferralEarnings,
 } from '../controllers/gameController';
 import { authenticateToken } from '../middleware/auth';
 

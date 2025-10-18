@@ -219,12 +219,26 @@ export const getGameSettings = async (req: Request, res: Response): Promise<any>
  */
 export const updateGameSettings = async (req: Request, res: Response): Promise<any> => {
   try {
-    const { winMultiplier, minBetAmount, maxBetAmount } = req.body;
+    const { 
+      winMultiplier, 
+      minBetAmount, 
+      maxBetAmount,
+      referralCommissionL1,
+      referralCommissionL2,
+      referralCommissionL3,
+      referralSignupBonus,
+      minRechargeForBonus
+    } = req.body;
 
     const updates: any = {};
     if (winMultiplier !== undefined) updates.winMultiplier = parseFloat(winMultiplier);
     if (minBetAmount !== undefined) updates.minBetAmount = parseFloat(minBetAmount);
     if (maxBetAmount !== undefined) updates.maxBetAmount = parseFloat(maxBetAmount);
+    if (referralCommissionL1 !== undefined) updates.referralCommissionL1 = parseFloat(referralCommissionL1);
+    if (referralCommissionL2 !== undefined) updates.referralCommissionL2 = parseFloat(referralCommissionL2);
+    if (referralCommissionL3 !== undefined) updates.referralCommissionL3 = parseFloat(referralCommissionL3);
+    if (referralSignupBonus !== undefined) updates.referralSignupBonus = parseFloat(referralSignupBonus);
+    if (minRechargeForBonus !== undefined) updates.minRechargeForBonus = parseFloat(minRechargeForBonus);
 
     if (Object.keys(updates).length === 0) {
       return res.status(400).json({
@@ -245,6 +259,53 @@ export const updateGameSettings = async (req: Request, res: Response): Promise<a
     res.status(500).json({
       success: false,
       message: 'Failed to update game settings',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Get user's referral information
+ */
+export const getReferralInfo = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const userId = (req as any).user.userId;
+
+    const referralInfo = await gameService.getReferralInfo(userId);
+
+    res.json({
+      success: true,
+      data: referralInfo,
+    });
+  } catch (error: any) {
+    console.error('Error fetching referral info:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch referral information',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Get user's referral earnings
+ */
+export const getReferralEarnings = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const userId = (req as any).user.userId;
+    const limit = parseInt(req.query.limit as string) || 50;
+
+    const earnings = await gameService.getReferralEarnings(userId, limit);
+
+    res.json({
+      success: true,
+      data: earnings,
+    });
+  } catch (error: any) {
+    console.error('Error fetching referral earnings:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch referral earnings',
       error: error.message,
     });
   }

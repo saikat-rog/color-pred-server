@@ -30,14 +30,21 @@ class DatabaseService {
     password: string;
     isVerified?: boolean;
     balance?: number;
+    referredById?: number;
   }): Promise<User> {
+    const userData: any = {
+      phoneNumber: data.phoneNumber,
+      password: data.password,
+      isVerified: data.isVerified ?? false,
+      balance: data.balance ?? 0,
+    };
+
+    if (data.referredById !== undefined) {
+      userData.referredById = data.referredById;
+    }
+
     return await this.prisma.user.create({
-      data: {
-        phoneNumber: data.phoneNumber,
-        password: data.password,
-        isVerified: data.isVerified ?? false,
-        balance: data.balance ?? 0,
-      },
+      data: userData,
     });
   }
 

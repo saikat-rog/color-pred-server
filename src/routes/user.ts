@@ -1,11 +1,31 @@
 import { Router } from 'express';
 import { userController } from '../controllers/userController';
+import { getReferralInfo, getReferralEarnings } from '../controllers/gameController';
 import { authenticateToken } from '../middleware/auth';
 
 const router = Router();
 
+
 // All user routes require authentication
 router.use(authenticateToken);
+
+// Referral routes
+/**
+ * @route   GET /api/user/referral/info
+ * @desc    Get user's referral information
+ * @access  Private
+ * @headers Authorization: Bearer <token>
+ */
+router.get('/referral/info', getReferralInfo);
+
+/**
+ * @route   GET /api/user/referral/earnings
+ * @desc    Get user's referral earnings
+ * @access  Private
+ * @headers Authorization: Bearer <token>
+ * @query   limit (optional, default: 50)
+ */
+router.get('/referral/earnings', getReferralEarnings);
 
 /**
  * @route   PUT /api/user/profile

@@ -93,7 +93,7 @@ class AuthController {
    */
   async completeSignup(req: Request, res: Response): Promise<void> {
     try {
-      const { phoneNumber, otp, password }: UserRegistration & { otp: string } = req.body;
+      const { phoneNumber, otp, password, referralCode }: UserRegistration & { otp: string; referralCode?: string } = req.body;
 
       if (!phoneNumber || !otp || !password) {
         res.status(400).json({
@@ -120,6 +120,31 @@ class AuthController {
           message: 'Password must be at least 8 characters long and contain at least one number'
         });
         return;
+      }
+
+      // Validate referral code if provided
+      let referredById: number | undefined;
+      if (referralCode) {
+        const referralCodeNum = parseInt(referralCode);
+        if (isNaN(referralCodeNum)) {
+          res.status(400).json({
+            success: false,
+            message: 'Invalid referral code format'
+          });
+          return;
+        }
+
+        // Check if referrer exists
+        const referrer = await databaseService.findUserById(referralCodeNum);
+        if (!referrer) {
+          res.status(400).json({
+            success: false,
+            message: 'Invalid referral code. User not found.'
+          });
+          return;
+        }
+
+        referredById = referralCodeNum;
       }
 
       // Verify OTP using database service
@@ -149,12 +174,18 @@ class AuthController {
       const hashedPassword = await bcrypt.hash(password, config.security.bcryptSaltRounds);
 
       // Create user in database
-      const user = await databaseService.createUser({
+      const userData: any = {
         phoneNumber: cleanPhone,
         password: hashedPassword,
         isVerified: true,
-        balance: 0
-      });
+        balance: 0,
+      };
+
+      if (referredById !== undefined) {
+        userData.referredById = referredById;
+      }
+
+      const user = await databaseService.createUser(userData);
 
       // Generate tokens
       const { accessToken, refreshToken } = this.generateTokens(user);

@@ -32,6 +32,11 @@ export class GameService {
           winMultiplier: 1.8,
           minBetAmount: 10,
           maxBetAmount: 10000,
+          referralCommissionL1: 1.0, // Level 1: 1%
+          referralCommissionL2: 0.5, // Level 2: 0.5%
+          referralCommissionL3: 0.25, // Level 3: 0.25%
+          referralSignupBonus: 1.0, // 1 Rs bonus
+          minRechargeForBonus: 500.0, // Minimum 500 Rs recharge
         },
       });
       console.log('✅ Game settings initialized');
@@ -364,7 +369,121 @@ export class GameService {
 
     console.log(`🎲 User ${userId} placed bet of ${amount} on ${color} for period ${period.periodId}`);
 
+    // Process referral commissions
+    await this.processReferralCommissions(userId, bet.id, amount, settings);
+
     return bet;
+  }
+
+  /**
+   * Process referral commissions for a bet
+   */
+  private async processReferralCommissions(
+    bettorUserId: number,
+    betId: number,
+    betAmount: number,
+    settings: any
+  ) {
+    try {
+      // Get the bettor's referral chain (up to 3 levels)
+      const bettor = await prisma.user.findUnique({
+        where: { id: bettorUserId },
+        select: { referredById: true },
+      });
+
+      if (!bettor || !bettor.referredById) {
+        return; // No referrer, no commissions
+      }
+
+      const commissions = [
+        { level: 1, percentage: settings.referralCommissionL1, userId: bettor.referredById },
+      ];
+
+      // Get Level 2 referrer
+      if (bettor.referredById) {
+        const level1 = await prisma.user.findUnique({
+          where: { id: bettor.referredById },
+          select: { referredById: true },
+        });
+
+        if (level1?.referredById) {
+          commissions.push({
+            level: 2,
+            percentage: settings.referralCommissionL2,
+            userId: level1.referredById,
+          });
+
+          // Get Level 3 referrer
+          const level2 = await prisma.user.findUnique({
+            where: { id: level1.referredById },
+            select: { referredById: true },
+          });
+
+          if (level2?.referredById) {
+            commissions.push({
+              level: 3,
+              percentage: settings.referralCommissionL3,
+              userId: level2.referredById,
+            });
+          }
+        }
+      }
+
+      // Process each commission
+      for (const commission of commissions) {
+        const commissionAmount = (betAmount * commission.percentage) / 100;
+
+        if (commissionAmount > 0) {
+          // Get referrer's current balance
+          const referrer = await prisma.user.findUnique({
+            where: { id: commission.userId },
+          });
+
+          if (referrer) {
+            const newBalance = referrer.balance + commissionAmount;
+
+            // Update referrer's balance
+            await prisma.user.update({
+              where: { id: commission.userId },
+              data: { balance: newBalance },
+            });
+
+            // Create commission record
+            await prisma.referralCommission.create({
+              data: {
+                userId: commission.userId,
+                fromUserId: bettorUserId,
+                betId,
+                amount: commissionAmount,
+                percentage: commission.percentage,
+                level: commission.level,
+              },
+            });
+
+            // Create transaction record
+            await prisma.transaction.create({
+              data: {
+                userId: commission.userId,
+                type: 'referral_commission',
+                amount: commissionAmount,
+                status: 'completed',
+                description: `L${commission.level} Referral commission from bet #${betId}`,
+                referenceId: betId.toString(),
+                balanceBefore: referrer.balance,
+                balanceAfter: newBalance,
+              },
+            });
+
+            console.log(
+              `💰 L${commission.level} Commission: User ${commission.userId} earned ₹${commissionAmount.toFixed(2)} (${commission.percentage}%) from User ${bettorUserId}'s bet`
+            );
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error processing referral commissions:', error);
+      // Don't throw error - commissions are a bonus feature, shouldn't block betting
+    }
   }
 
   /**
@@ -480,6 +599,218 @@ export class GameService {
       clearTimeout(this.periodTimer);
       this.periodTimer = null;
     }
+  }
+
+  /**
+   * Process referral bonus when a user recharges
+   * Called after a successful recharge to check if referrer should get bonus
+   * Bonus is only given if the FIRST recharge is >= minimum amount
+   */
+  async processReferralBonus(userId: number, rechargeAmount: number) {
+    try {
+      // Get user with referral info
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          referredById: true,
+          hasClaimedReferralBonus: true,
+        },
+      });
+
+      // Check if user was referred and hasn't claimed bonus yet
+      if (!user || !user.referredById || user.hasClaimedReferralBonus) {
+        return; // No referrer or bonus already claimed/invalidated
+      }
+
+      // Get game settings
+      const settings = await prisma.gameSettings.findFirst();
+      if (!settings) {
+        return;
+      }
+
+      // Check if this is the first recharge by looking at recharge transaction history
+      const previousRecharges = await prisma.transaction.count({
+        where: {
+          userId: userId,
+          type: 'recharge',
+          status: 'completed',
+        },
+      });
+
+      // If this is the first recharge (count is 1, just created)
+      if (previousRecharges === 1) {
+        // Check if first recharge meets minimum requirement
+        if (rechargeAmount < settings.minRechargeForBonus) {
+          console.log(
+            `❌ First recharge of ₹${rechargeAmount} is below minimum ₹${settings.minRechargeForBonus}. Referral bonus invalidated for user ${userId}.`
+          );
+          
+          // Mark as claimed to prevent future bonus (invalidate)
+          await prisma.user.update({
+            where: { id: userId },
+            data: { hasClaimedReferralBonus: true },
+          });
+          
+          return; // No bonus, and user can never get it
+        }
+
+        // First recharge meets minimum - process bonus
+        // Get referrer
+        const referrer = await prisma.user.findUnique({
+          where: { id: user.referredById },
+        });
+
+        if (!referrer) {
+          return;
+        }
+
+        const bonusAmount = settings.referralSignupBonus;
+        const newReferrerBalance = referrer.balance + bonusAmount;
+
+        // Credit referrer with bonus
+        await prisma.user.update({
+          where: { id: referrer.id },
+          data: { balance: newReferrerBalance },
+        });
+
+        // Mark user as having claimed the bonus
+        await prisma.user.update({
+          where: { id: userId },
+          data: { hasClaimedReferralBonus: true },
+        });
+
+        // Create transaction for referrer
+        await prisma.transaction.create({
+          data: {
+            userId: referrer.id,
+            type: 'referral_bonus',
+            amount: bonusAmount,
+            status: 'completed',
+            description: `Referral signup bonus for referring user #${userId}`,
+            referenceId: userId.toString(),
+            balanceBefore: referrer.balance,
+            balanceAfter: newReferrerBalance,
+          },
+        });
+
+        console.log(
+          `🎁 Referral bonus: User ${referrer.id} earned ₹${bonusAmount} for referring User ${userId} (first recharge: ₹${rechargeAmount})`
+        );
+      }
+      // If not first recharge, do nothing (bonus already processed or invalidated)
+    } catch (error) {
+      console.error('Error processing referral bonus:', error);
+      // Don't throw error - bonus is a nice-to-have feature
+    }
+  }
+
+  /**
+   * Get user's referral information
+   */
+  async getReferralInfo(userId: number) {
+    // Get all level 1 referrals
+    const level1Users = await prisma.user.findMany({
+      where: { referredById: userId },
+      select: { id: true, phoneNumber: true, createdAt: true },
+    });
+
+    // Get all level 2 referrals
+  let level2Users: { id: number; phoneNumber: string; createdAt: Date; referredById: number | null }[] = [];
+    for (const l1 of level1Users) {
+      const l2s = await prisma.user.findMany({
+        where: { referredById: l1.id },
+        select: { id: true, phoneNumber: true, createdAt: true, referredById: true },
+      });
+      level2Users.push(...l2s);
+    }
+
+    // Get all level 3 referrals
+  let level3Users: { id: number; phoneNumber: string; createdAt: Date; referredById: number | null }[] = [];
+    for (const l2 of level2Users) {
+      const l3s = await prisma.user.findMany({
+        where: { referredById: l2.id },
+        select: { id: true, phoneNumber: true, createdAt: true, referredById: true },
+      });
+      level3Users.push(...l3s);
+    }
+
+    // Helper to get commission earned from a specific referred user
+    async function getCommissionFromRef(userId: number, fromUserId: number) {
+      const result = await prisma.referralCommission.aggregate({
+        where: { userId, fromUserId },
+        _sum: { amount: true },
+      });
+      return result._sum.amount || 0;
+    }
+
+    // Map each referral to include commission earned from them
+    const level1 = await Promise.all(level1Users.map(async (u) => ({
+      id: u.id,
+      phoneNumber: u.phoneNumber,
+      createdAt: u.createdAt,
+      level: 1,
+      moneyEarned: await getCommissionFromRef(userId, u.id),
+    })));
+    const level2 = await Promise.all(level2Users.map(async (u) => ({
+      id: u.id,
+      phoneNumber: u.phoneNumber,
+      createdAt: u.createdAt,
+      level: 2,
+      referredById: u.referredById,
+      moneyEarned: await getCommissionFromRef(userId, u.id),
+    })));
+    const level3 = await Promise.all(level3Users.map(async (u) => ({
+      id: u.id,
+      phoneNumber: u.phoneNumber,
+      createdAt: u.createdAt,
+      level: 3,
+      referredById: u.referredById,
+      moneyEarned: await getCommissionFromRef(userId, u.id),
+    })));
+
+    // Get total commission earned
+    const totalCommission = await prisma.referralCommission.aggregate({
+      where: { userId },
+      _sum: { amount: true },
+    });
+
+    return {
+      referralCode: userId.toString(),
+      totalEarnings: totalCommission._sum.amount || 0,
+      totalReferrals: level1.length + level2.length + level3.length,
+      referrals: [
+        ...level1,
+        ...level2,
+        ...level3,
+      ],
+      referralsByLevel: {
+        level1: level1.length,
+        level2: level2.length,
+        level3: level3.length,
+      },
+    };
+  }
+
+  /**
+   * Get user's referral earnings history
+   */
+  async getReferralEarnings(userId: number, limit: number = 50) {
+    return await prisma.referralCommission.findMany({
+      where: { userId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            phoneNumber: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      take: limit,
+    });
   }
 }
 
