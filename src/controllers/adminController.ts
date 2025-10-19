@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { config } from '../config';
 import { databaseService } from '../services/databaseService';
-import { PrismaClient } from '../generated/prisma';
+import { PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient();
 
@@ -41,7 +41,7 @@ export class AdminController {
       res.status(500).json({ success: false, message: 'Internal server error' });
     }
   }
-  
+
   async login(req: Request, res: Response): Promise<void> {
     try {
       const { username, password, secretWord } = req.body;

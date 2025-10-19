@@ -1,5 +1,4 @@
-import { PrismaClient } from '../generated/prisma';
-import { User, OTPSession, RefreshToken } from '../generated/prisma';
+import { PrismaClient, User, OTPSession, RefreshToken } from '@prisma/client'
 
 class DatabaseService {
   private prisma: PrismaClient;

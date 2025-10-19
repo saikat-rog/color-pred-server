@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { gameService } from '../services/gameService';
-import { Color } from '../generated/prisma';
+import type { Color } from '@prisma/client';
+
 
 /**
  * Get current game period information

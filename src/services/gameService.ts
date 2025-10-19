@@ -1,4 +1,4 @@
-import { PrismaClient, Color } from '../generated/prisma';
+import { PrismaClient, Color } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
