@@ -6,11 +6,8 @@ import {
   getUserBetHistory,
   getPeriodHistory,
   getGameSettings,
-  updateGameSettings,
-  getReferralInfo,
-  getReferralEarnings,
 } from '../controllers/gameController';
-import { authenticateToken } from '../middleware/auth';
+import { authenticateToken, ensureNotBanned } from '../middleware/auth';
 
 const router = Router();
 
@@ -20,11 +17,8 @@ router.get('/period/history', getPeriodHistory);
 router.get('/settings', getGameSettings);
 
 // Protected routes (require authentication)
-router.post('/bet', authenticateToken, placeBet);
-router.get('/bet/current', authenticateToken, getUserBetsForCurrentPeriod);
-router.get('/bet/history', authenticateToken, getUserBetHistory);
-
-// Admin routes (you can add admin middleware later)
-router.put('/settings', authenticateToken, updateGameSettings);
+router.post('/bet', authenticateToken, ensureNotBanned, placeBet);
+router.get('/bet/current', authenticateToken, ensureNotBanned, getUserBetsForCurrentPeriod);
+router.get('/bet/history', authenticateToken, ensureNotBanned, getUserBetHistory);
 
 export { router as gameRoutes };

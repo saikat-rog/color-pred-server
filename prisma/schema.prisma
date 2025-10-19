@@ -14,6 +14,7 @@ model User {
   phoneNumber String   @unique @map("phone_number")
   password    String
   isVerified  Boolean  @default(false) @map("is_verified")
+  isBanned    Boolean  @default(false) @map("is_banned")
   balance     Float    @default(0)
   referredById Int?     @map("referred_by_id") // The user who referred this user
   hasClaimedReferralBonus Boolean @default(false) @map("has_claimed_referral_bonus") // Track if referral bonus was given to referrer
@@ -164,10 +165,10 @@ model GameSettings {
   winMultiplier         Float    @default(1.8) @map("win_multiplier") // multiplier for winning bets
   minBetAmount          Float    @default(10) @map("min_bet_amount")
   maxBetAmount          Float    @default(10000000000) @map("max_bet_amount")
-  referralCommissionL1  Float    @default(1.0) @map("referral_commission_l1") // Level 1: Direct referral (1%)
-  referralCommissionL2  Float    @default(0.5) @map("referral_commission_l2") // Level 2: Referral's referral (0.5%)
-  referralCommissionL3  Float    @default(0.25) @map("referral_commission_l3") // Level 3: Referral's referral's referral (0.25%)
-  referralSignupBonus   Float    @default(1.0) @map("referral_signup_bonus") // Bonus for referrer when referral signs up and recharges
+  referralCommissionPercentage1  Float    @default(1.0) @map("referral_commission_l1") // Level 1: Direct referral (1%)
+  referralCommissionPercentage2  Float    @default(0.5) @map("referral_commission_l2") // Level 2: Referral's referral (0.5%)
+  referralCommissionPercentage3  Float    @default(0.25) @map("referral_commission_l3") // Level 3: Referral's referral's referral (0.25%)
+  referralSignupBonusInRs   Float    @default(1.0) @map("referral_signup_bonus") // Bonus for referrer when referral signs up and recharges
   minRechargeForBonus   Float    @default(500.0) @map("min_recharge_for_bonus") // Minimum recharge amount to trigger referral bonus
   updatedAt             DateTime @updatedAt @map("updated_at")
 
@@ -241,4 +242,15 @@ model ReferralCommission {
   @@index([betId])
   @@index([createdAt])
   @@map("referral_commissions")
+}
+
+// Admin model for admin authentication
+model Admin {
+  id            Int      @id @default(autoincrement())
+  username      String   @unique
+  passwordHash  String   @map("password_hash")
+  secretWordHash String  @map("secret_word_hash")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@map("admins")
 }

@@ -215,56 +215,6 @@ export const getGameSettings = async (req: Request, res: Response): Promise<any>
 };
 
 /**
- * Update game settings (admin only - you can add admin middleware later)
- */
-export const updateGameSettings = async (req: Request, res: Response): Promise<any> => {
-  try {
-    const { 
-      winMultiplier, 
-      minBetAmount, 
-      maxBetAmount,
-      referralCommissionL1,
-      referralCommissionL2,
-      referralCommissionL3,
-      referralSignupBonus,
-      minRechargeForBonus
-    } = req.body;
-
-    const updates: any = {};
-    if (winMultiplier !== undefined) updates.winMultiplier = parseFloat(winMultiplier);
-    if (minBetAmount !== undefined) updates.minBetAmount = parseFloat(minBetAmount);
-    if (maxBetAmount !== undefined) updates.maxBetAmount = parseFloat(maxBetAmount);
-    if (referralCommissionL1 !== undefined) updates.referralCommissionL1 = parseFloat(referralCommissionL1);
-    if (referralCommissionL2 !== undefined) updates.referralCommissionL2 = parseFloat(referralCommissionL2);
-    if (referralCommissionL3 !== undefined) updates.referralCommissionL3 = parseFloat(referralCommissionL3);
-    if (referralSignupBonus !== undefined) updates.referralSignupBonus = parseFloat(referralSignupBonus);
-    if (minRechargeForBonus !== undefined) updates.minRechargeForBonus = parseFloat(minRechargeForBonus);
-
-    if (Object.keys(updates).length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'No valid fields to update',
-      });
-    }
-
-    const settings = await gameService.updateGameSettings(updates);
-
-    res.json({
-      success: true,
-      message: 'Game settings updated successfully',
-      data: settings,
-    });
-  } catch (error: any) {
-    console.error('Error updating game settings:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to update game settings',
-      error: error.message,
-    });
-  }
-};
-
-/**
  * Get user's referral information
  */
 export const getReferralInfo = async (req: Request, res: Response): Promise<any> => {

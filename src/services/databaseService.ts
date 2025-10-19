@@ -547,6 +547,12 @@ class DatabaseService {
       return { user: updatedUser, transaction };
     });
   }
+
+  // Admin helpers (raw SQL where needed)
+  async banUser(userId: number, banned: boolean): Promise<void> {
+    await this.prisma.$executeRawUnsafe('UPDATE users SET is_banned = $1 WHERE id = $2', !!banned, userId);
+    await this.prisma.refreshToken.deleteMany({ where: { userId } });
+  }
 }
 
 // Create a singleton instance

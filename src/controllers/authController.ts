@@ -253,6 +253,11 @@ class AuthController {
         return;
       }
 
+      if ((user as any).isBanned) {
+        res.status(403).json({ success: false, message: 'Your account is banned. Please contact admin.' });
+        return;
+      }
+
       if (!user.isVerified) {
         res.status(401).json({
           success: false,

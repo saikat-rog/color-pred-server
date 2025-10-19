@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { config } from '../config';
 import { JWTPayload } from '../types';
+import { databaseService } from '../services/databaseService';
 
 /**
  * JWT Authentication Middleware
@@ -98,5 +99,29 @@ export const optionalAuth = (req: Request, res: Response, next: NextFunction): v
   } catch (error) {
     console.error('Error in optionalAuth middleware:', error);
     next(); // Continue even if there's an error
+  }
+};
+
+/**
+ * Banned User Guard
+ * Ensures the authenticated user is not banned; use after authenticateToken
+ */
+export const ensureNotBanned = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const user = req.user;
+    if (!user) {
+      return res.status(401).json({ success: false, message: 'User not authenticated' });
+    }
+    const dbUser = await databaseService.findUserById(user.userId);
+    if (!dbUser) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+    if ((dbUser as any).isBanned) {
+      return res.status(403).json({ success: false, message: 'Your account is banned. Please contact admin.' });
+    }
+    return next();
+  } catch (err) {
+    console.error('Error in ensureNotBanned middleware:', err);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };

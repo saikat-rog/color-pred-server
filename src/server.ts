@@ -6,6 +6,7 @@ import { authRoutes } from './routes/auth';
 import { userRoutes } from './routes/user';
 import { gameRoutes } from './routes/game';
 import { databaseService } from './services/databaseService';
+import { adminRoutes } from './routes/admin';
 import { gameService } from './services/gameService';
 
 // Initialize Express app
@@ -57,7 +58,17 @@ app.get('/', (req, res) => {
       getBetHistory: 'GET /api/game/bet/history',
       getPeriodHistory: 'GET /api/game/period/history',
       getGameSettings: 'GET /api/game/settings',
-      updateGameSettings: 'PUT /api/game/settings'
+      updateGameSettings: 'PUT /api/game/settings',
+      // Admin endpoints
+      adminLogin: 'POST /api/admin/login',
+      adminUsers: 'GET /api/admin/users',
+      adminUserDetail: 'GET /api/admin/user/:id',
+      adminBanUser: 'PUT /api/admin/user/:id/ban',
+      adminUserSummary: 'GET /api/admin/user/:id/summary',
+      adminDashboard: 'GET /api/admin/dashboard',
+      adminPeriods: 'GET /api/admin/periods',
+      adminGetSettings: 'GET /api/admin/settings',
+      adminUpdateSettings: 'PUT /api/admin/settings'
     }
   });
 });
@@ -66,6 +77,7 @@ app.get('/', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/game', gameRoutes);
+app.use('/api/admin', adminRoutes);
 
 // 404 handler
 app.use((req, res) => {

@@ -1,13 +1,13 @@
 import { Router } from 'express';
 import { userController } from '../controllers/userController';
 import { getReferralInfo, getReferralEarnings } from '../controllers/gameController';
-import { authenticateToken } from '../middleware/auth';
+import { authenticateToken, ensureNotBanned } from '../middleware/auth';
 
 const router = Router();
 
 
 // All user routes require authentication
-router.use(authenticateToken);
+router.use(authenticateToken, ensureNotBanned);
 
 // Referral routes
 /**

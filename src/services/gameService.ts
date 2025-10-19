@@ -32,10 +32,10 @@ export class GameService {
           winMultiplier: 1.8,
           minBetAmount: 10,
           maxBetAmount: 10000,
-          referralCommissionL1: 1.0, // Level 1: 1%
-          referralCommissionL2: 0.5, // Level 2: 0.5%
-          referralCommissionL3: 0.25, // Level 3: 0.25%
-          referralSignupBonus: 1.0, // 1 Rs bonus
+          referralCommissionPercentage1: 1.0, // Level 1: 1%
+          referralCommissionPercentage2: 0.5, // Level 2: 0.5%
+          referralCommissionPercentage3: 0.25, // Level 3: 0.25%
+          referralSignupBonusInRs: 1.0, // 1 Rs bonus
           minRechargeForBonus: 500.0, // Minimum 500 Rs recharge
         },
       });
@@ -396,7 +396,7 @@ export class GameService {
       }
 
       const commissions = [
-        { level: 1, percentage: settings.referralCommissionL1, userId: bettor.referredById },
+  { level: 1, percentage: settings.referralCommissionPercentage1, userId: bettor.referredById },
       ];
 
       // Get Level 2 referrer
@@ -409,7 +409,7 @@ export class GameService {
         if (level1?.referredById) {
           commissions.push({
             level: 2,
-            percentage: settings.referralCommissionL2,
+            percentage: settings.referralCommissionPercentage2,
             userId: level1.referredById,
           });
 
@@ -422,7 +422,7 @@ export class GameService {
           if (level2?.referredById) {
             commissions.push({
               level: 3,
-              percentage: settings.referralCommissionL3,
+              percentage: settings.referralCommissionPercentage3,
               userId: level2.referredById,
             });
           }
@@ -665,7 +665,7 @@ export class GameService {
           return;
         }
 
-        const bonusAmount = settings.referralSignupBonus;
+  const bonusAmount = settings.referralSignupBonusInRs;
         const newReferrerBalance = referrer.balance + bonusAmount;
 
         // Credit referrer with bonus
