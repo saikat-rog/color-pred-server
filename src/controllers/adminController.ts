@@ -83,10 +83,25 @@ export class AdminController {
 
   async listUsers(req: Request, res: Response): Promise<void> {
     try {
-      const users = await prisma.$queryRawUnsafe<any[]>(
-        'SELECT id, phone_number as "phoneNumber", is_verified as "isVerified", is_banned as "isBanned", balance, created_at as "createdAt" FROM users ORDER BY created_at DESC'
-      );
-      res.status(200).json({ success: true, data: users as any });
+      const limit = Math.min(parseInt((req.query.limit as string) || '10', 10), 100);
+      const offset = Math.max(parseInt((req.query.offset as string) || '0', 10), 0);
+      const [users, total] = await Promise.all([
+        prisma.user.findMany({
+          orderBy: { createdAt: 'desc' },
+          skip: offset,
+          take: limit,
+          select: {
+            id: true,
+            phoneNumber: true,
+            isVerified: true,
+            isBanned: true,
+            balance: true,
+            createdAt: true,
+          },
+        }),
+        prisma.user.count(),
+      ]);
+      res.status(200).json({ success: true, data: { users, total, limit, offset } });
     } catch (error) {
       console.error('Admin listUsers error:', error);
       res.status(500).json({ success: false, message: 'Internal server error' });
