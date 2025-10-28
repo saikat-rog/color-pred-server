@@ -1,4 +1,4 @@
-import { PrismaClient, Color } from '@prisma/client';
+import { PrismaClient, Color } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
@@ -10,11 +10,11 @@ export class GameService {
    * Initialize the game service and start the period cycle
    */
   async initialize() {
-    console.log('🎮 Initializing Game Service...');
-    
+    console.log("🎮 Initializing Game Service...");
+
     // Ensure game settings exist
     await this.ensureGameSettings();
-    
+
     // Start or resume the current period
     await this.startOrResumePeriod();
   }
@@ -39,7 +39,7 @@ export class GameService {
           minRechargeForBonus: 500.0, // Minimum 500 Rs recharge
         },
       });
-      console.log('✅ Game settings initialized');
+      console.log("✅ Game settings initialized");
     }
   }
 
@@ -48,14 +48,14 @@ export class GameService {
    */
   private generatePeriodId(date: Date): string {
     const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+
     // Calculate period number for the day (1-480)
     const minutesFromMidnight = date.getHours() * 60 + date.getMinutes();
     const periodNumber = Math.floor(minutesFromMidnight / 3) + 1;
-    
-    return `${year}${month}${day}${String(periodNumber).padStart(3, '0')}`;
+
+    return `${year}${month}${day}${String(periodNumber).padStart(3, "0")}`;
   }
 
   /**
@@ -65,11 +65,11 @@ export class GameService {
     const minutesFromMidnight = now.getHours() * 60 + now.getMinutes();
     const periodIndex = Math.floor(minutesFromMidnight / 3);
     const periodStartMinutes = periodIndex * 3;
-    
+
     const startTime = new Date(now);
     startTime.setHours(0, 0, 0, 0);
     startTime.setMinutes(periodStartMinutes);
-    
+
     return startTime;
   }
 
@@ -89,7 +89,9 @@ export class GameService {
     if (!period) {
       // Create new period
       const endTime = new Date(periodStartTime.getTime() + 3 * 60 * 1000); // +3 minutes
-      const bettingEndTime = new Date(periodStartTime.getTime() + 2.5 * 60 * 1000); // +2:30 minutes
+      const bettingEndTime = new Date(
+        periodStartTime.getTime() + 2.5 * 60 * 1000
+      ); // +2:30 minutes
 
       period = await prisma.gamePeriod.create({
         data: {
@@ -97,7 +99,7 @@ export class GameService {
           startTime: periodStartTime,
           endTime,
           bettingEndTime,
-          status: 'active',
+          status: "active",
         },
       });
       console.log(`🆕 Created new period: ${periodId}`);
@@ -111,9 +113,10 @@ export class GameService {
     const timeUntilEnd = period.endTime.getTime() - now.getTime();
     if (timeUntilEnd > 0) {
       this.schedulePeriodEnd(timeUntilEnd);
-      
+
       // Schedule betting lock (30 seconds before end)
-      const timeUntilBettingEnd = period.bettingEndTime.getTime() - now.getTime();
+      const timeUntilBettingEnd =
+        period.bettingEndTime.getTime() - now.getTime();
       if (timeUntilBettingEnd > 0) {
         setTimeout(() => this.lockBetting(), timeUntilBettingEnd);
       } else {
@@ -149,7 +152,7 @@ export class GameService {
 
     await prisma.gamePeriod.update({
       where: { id: this.currentPeriod.id },
-      data: { status: 'betting_closed' },
+      data: { status: "betting_closed" },
     });
 
     console.log(`🔒 Betting locked for period: ${this.currentPeriod.periodId}`);
@@ -175,25 +178,25 @@ export class GameService {
 
     // Calculate total bets per color
     const greenTotal = period.bets
-      .filter(bet => bet.color === 'green')
+      .filter((bet) => bet.color === "green")
       .reduce((sum, bet) => sum + bet.amount, 0);
-    
+
     const purpleTotal = period.bets
-      .filter(bet => bet.color === 'purple')
+      .filter((bet) => bet.color === "purple")
       .reduce((sum, bet) => sum + bet.amount, 0);
-    
+
     const redTotal = period.bets
-      .filter(bet => bet.color === 'red')
+      .filter((bet) => bet.color === "red")
       .reduce((sum, bet) => sum + bet.amount, 0);
 
     // Determine winning color (lowest bet amount)
     const colorTotals = [
-      { color: 'green' as Color, total: greenTotal },
-      { color: 'purple' as Color, total: purpleTotal },
-      { color: 'red' as Color, total: redTotal },
+      { color: "green" as Color, total: greenTotal },
+      { color: "purple" as Color, total: purpleTotal },
+      { color: "red" as Color, total: redTotal },
     ];
 
-    const winningColorObj = colorTotals.reduce((min, current) => 
+    const winningColorObj = colorTotals.reduce((min, current) =>
       current.total < min.total ? current : min
     );
 
@@ -203,7 +206,7 @@ export class GameService {
     await prisma.gamePeriod.update({
       where: { id: period.id },
       data: {
-        status: 'completed',
+        status: "completed",
         winningColor,
         totalGreenBets: greenTotal,
         totalPurpleBets: purpleTotal,
@@ -212,7 +215,9 @@ export class GameService {
       },
     });
 
-    console.log(`🏆 Period ${period.periodId} completed. Winning color: ${winningColor}`);
+    console.log(
+      `🏆 Period ${period.periodId} completed. Winning color: ${winningColor}`
+    );
 
     // Process all bets
     await this.settleBets(period.id, winningColor);
@@ -232,7 +237,7 @@ export class GameService {
 
     // Get all bets for this period
     const bets = await prisma.bet.findMany({
-      where: { gamePeriodId, status: 'pending' },
+      where: { gamePeriodId, status: "pending" },
       include: { user: true },
     });
 
@@ -244,7 +249,7 @@ export class GameService {
       await prisma.bet.update({
         where: { id: bet.id },
         data: {
-          status: isWinner ? 'won' : 'lost',
+          status: isWinner ? "won" : "lost",
           winAmount: isWinner ? winAmount : null,
           settledAt: new Date(),
         },
@@ -264,9 +269,9 @@ export class GameService {
         await prisma.transaction.create({
           data: {
             userId: bet.userId,
-            type: 'bet_win_credit',
+            type: "bet_win_credit",
             amount: winAmount,
-            status: 'completed',
+            status: "completed",
             description: `Win from bet on ${bet.color} - Period ${bet.periodId}`,
             referenceId: bet.id.toString(),
             balanceBefore: currentBalance,
@@ -287,7 +292,7 @@ export class GameService {
   async placeBet(userId: number, color: Color, amount: number) {
     // Validate betting is open
     if (!this.currentPeriod) {
-      throw new Error('No active period');
+      throw new Error("No active period");
     }
 
     const now = new Date();
@@ -296,21 +301,21 @@ export class GameService {
     });
 
     if (!period) {
-      throw new Error('Period not found');
+      throw new Error("Period not found");
     }
 
-    if (period.status !== 'active') {
-      throw new Error('Betting is closed for this period');
+    if (period.status !== "active") {
+      throw new Error("Betting is closed for this period");
     }
 
     if (now >= period.bettingEndTime) {
-      throw new Error('Betting time has ended for this period');
+      throw new Error("Betting time has ended for this period");
     }
 
     // Get game settings
     const settings = await prisma.gameSettings.findFirst();
     if (!settings) {
-      throw new Error('Game settings not found');
+      throw new Error("Game settings not found");
     }
 
     // Validate bet amount
@@ -328,11 +333,11 @@ export class GameService {
     });
 
     if (!user) {
-      throw new Error('User not found');
+      throw new Error("User not found");
     }
 
     if (user.balance < amount) {
-      throw new Error('Insufficient balance');
+      throw new Error("Insufficient balance");
     }
 
     // Debit user balance
@@ -346,9 +351,9 @@ export class GameService {
     await prisma.transaction.create({
       data: {
         userId,
-        type: 'bet_debit',
+        type: "bet_debit",
         amount,
-        status: 'completed',
+        status: "completed",
         description: `Bet on ${color} - Period ${period.periodId}`,
         balanceBefore: user.balance,
         balanceAfter: newBalance,
@@ -363,11 +368,13 @@ export class GameService {
         gamePeriodId: period.id,
         color,
         amount,
-        status: 'pending',
+        status: "pending",
       },
     });
 
-    console.log(`🎲 User ${userId} placed bet of ${amount} on ${color} for period ${period.periodId}`);
+    console.log(
+      `🎲 User ${userId} placed bet of ${amount} on ${color} for period ${period.periodId}`
+    );
 
     // Process referral commissions
     await this.processReferralCommissions(userId, bet.id, amount, settings);
@@ -396,7 +403,11 @@ export class GameService {
       }
 
       const commissions = [
-  { level: 1, percentage: settings.referralCommissionPercentage1, userId: bettor.referredById },
+        {
+          level: 1,
+          percentage: settings.referralCommissionPercentage1,
+          userId: bettor.referredById,
+        },
       ];
 
       // Get Level 2 referrer
@@ -464,9 +475,9 @@ export class GameService {
             await prisma.transaction.create({
               data: {
                 userId: commission.userId,
-                type: 'referral_commission',
+                type: "referral_commission",
                 amount: commissionAmount,
-                status: 'completed',
+                status: "completed",
                 description: `L${commission.level} Referral commission from bet #${betId}`,
                 referenceId: betId.toString(),
                 balanceBefore: referrer.balance,
@@ -475,13 +486,17 @@ export class GameService {
             });
 
             console.log(
-              `💰 L${commission.level} Commission: User ${commission.userId} earned ₹${commissionAmount.toFixed(2)} (${commission.percentage}%) from User ${bettorUserId}'s bet`
+              `💰 L${commission.level} Commission: User ${
+                commission.userId
+              } earned ₹${commissionAmount.toFixed(2)} (${
+                commission.percentage
+              }%) from User ${bettorUserId}'s bet`
             );
           }
         }
       }
     } catch (error) {
-      console.error('Error processing referral commissions:', error);
+      console.error("Error processing referral commissions:", error);
       // Don't throw error - commissions are a bonus feature, shouldn't block betting
     }
   }
@@ -491,18 +506,64 @@ export class GameService {
    */
   async getCurrentPeriod() {
     const now = new Date();
-    const periodStartTime = this.calculatePeriodStartTime(now);
-    const periodId = this.generatePeriodId(periodStartTime);
 
-    const period = await prisma.gamePeriod.findUnique({
-      where: { periodId },
+    // Prefer the in-memory currentPeriod to avoid race conditions when a period
+    // is being rolled over but the database row for the next period isn't yet
+    // visible to quick reads. If the in-memory period appears valid for now,
+    // return it immediately.
+    if (this.currentPeriod) {
+      try {
+        const cp = this.currentPeriod as any;
+        if (
+          cp.startTime &&
+          cp.endTime &&
+          cp.startTime <= now &&
+          now < cp.endTime
+        ) {
+          const timeRemaining = Math.max(
+            0,
+            cp.endTime.getTime() - now.getTime()
+          );
+          const bettingTimeRemaining = Math.max(
+            0,
+            cp.bettingEndTime.getTime() - now.getTime()
+          );
+          const canBet = cp.status === "active" && bettingTimeRemaining > 0;
+          return {
+            ...cp,
+            timeRemaining: Math.floor(timeRemaining / 1000),
+            bettingTimeRemaining: Math.floor(bettingTimeRemaining / 1000),
+            canBet,
+          };
+        }
+      } catch (err) {
+        // If anything goes wrong reading in-memory period, fall back to DB lookup
+        console.warn("Warning reading in-memory currentPeriod:", err);
+      }
+    }
+
+    // Try to find a period that spans 'now' (handles DB visibility during rollovers)
+    let period = await prisma.gamePeriod.findFirst({
+      where: {
+        startTime: { lte: now },
+        endTime: { gt: now },
+      },
     });
+
+    // If not found in DB (possible race between end and creation), ensure service creates/resumes period
+    if (!period) {
+      await this.startOrResumePeriod();
+      period = this.currentPeriod as any;
+    }
 
     if (!period) return null;
 
     const timeRemaining = Math.max(0, period.endTime.getTime() - now.getTime());
-    const bettingTimeRemaining = Math.max(0, period.bettingEndTime.getTime() - now.getTime());
-    const canBet = period.status === 'active' && bettingTimeRemaining > 0;
+    const bettingTimeRemaining = Math.max(
+      0,
+      period.bettingEndTime.getTime() - now.getTime()
+    );
+    const canBet = period.status === "active" && bettingTimeRemaining > 0;
 
     return {
       ...period,
@@ -522,7 +583,7 @@ export class GameService {
         periodId,
       },
       orderBy: {
-        createdAt: 'desc',
+        createdAt: "desc",
       },
     });
   }
@@ -544,7 +605,7 @@ export class GameService {
         },
       },
       orderBy: {
-        createdAt: 'desc',
+        createdAt: "desc",
       },
       take: limit,
     });
@@ -556,10 +617,10 @@ export class GameService {
   async getPeriodHistory(limit: number = 50) {
     return await prisma.gamePeriod.findMany({
       where: {
-        status: 'completed',
+        status: "completed",
       },
       orderBy: {
-        completedAt: 'desc',
+        completedAt: "desc",
       },
       take: limit,
     });
@@ -582,7 +643,7 @@ export class GameService {
   }) {
     const settings = await prisma.gameSettings.findFirst();
     if (!settings) {
-      throw new Error('Game settings not found');
+      throw new Error("Game settings not found");
     }
 
     return await prisma.gameSettings.update({
@@ -633,8 +694,8 @@ export class GameService {
       const previousRecharges = await prisma.transaction.count({
         where: {
           userId: userId,
-          type: 'recharge',
-          status: 'completed',
+          type: "recharge",
+          status: "completed",
         },
       });
 
@@ -645,13 +706,13 @@ export class GameService {
           console.log(
             `❌ First recharge of ₹${rechargeAmount} is below minimum ₹${settings.minRechargeForBonus}. Referral bonus invalidated for user ${userId}.`
           );
-          
+
           // Mark as claimed to prevent future bonus (invalidate)
           await prisma.user.update({
             where: { id: userId },
             data: { hasClaimedReferralBonus: true },
           });
-          
+
           return; // No bonus, and user can never get it
         }
 
@@ -665,7 +726,7 @@ export class GameService {
           return;
         }
 
-  const bonusAmount = settings.referralSignupBonusInRs;
+        const bonusAmount = settings.referralSignupBonusInRs;
         const newReferrerBalance = referrer.balance + bonusAmount;
 
         // Credit referrer with bonus
@@ -684,9 +745,9 @@ export class GameService {
         await prisma.transaction.create({
           data: {
             userId: referrer.id,
-            type: 'referral_bonus',
+            type: "referral_bonus",
             amount: bonusAmount,
-            status: 'completed',
+            status: "completed",
             description: `Referral signup bonus for referring user #${userId}`,
             referenceId: userId.toString(),
             balanceBefore: referrer.balance,
@@ -700,7 +761,7 @@ export class GameService {
       }
       // If not first recharge, do nothing (bonus already processed or invalidated)
     } catch (error) {
-      console.error('Error processing referral bonus:', error);
+      console.error("Error processing referral bonus:", error);
       // Don't throw error - bonus is a nice-to-have feature
     }
   }
@@ -716,21 +777,41 @@ export class GameService {
     });
 
     // Get all level 2 referrals
-  let level2Users: { id: number; phoneNumber: string; createdAt: Date; referredById: number | null }[] = [];
+    let level2Users: {
+      id: number;
+      phoneNumber: string;
+      createdAt: Date;
+      referredById: number | null;
+    }[] = [];
     for (const l1 of level1Users) {
       const l2s = await prisma.user.findMany({
         where: { referredById: l1.id },
-        select: { id: true, phoneNumber: true, createdAt: true, referredById: true },
+        select: {
+          id: true,
+          phoneNumber: true,
+          createdAt: true,
+          referredById: true,
+        },
       });
       level2Users.push(...l2s);
     }
 
     // Get all level 3 referrals
-  let level3Users: { id: number; phoneNumber: string; createdAt: Date; referredById: number | null }[] = [];
+    let level3Users: {
+      id: number;
+      phoneNumber: string;
+      createdAt: Date;
+      referredById: number | null;
+    }[] = [];
     for (const l2 of level2Users) {
       const l3s = await prisma.user.findMany({
         where: { referredById: l2.id },
-        select: { id: true, phoneNumber: true, createdAt: true, referredById: true },
+        select: {
+          id: true,
+          phoneNumber: true,
+          createdAt: true,
+          referredById: true,
+        },
       });
       level3Users.push(...l3s);
     }
@@ -745,29 +826,35 @@ export class GameService {
     }
 
     // Map each referral to include commission earned from them
-    const level1 = await Promise.all(level1Users.map(async (u) => ({
-      id: u.id,
-      phoneNumber: u.phoneNumber,
-      createdAt: u.createdAt,
-      level: 1,
-      moneyEarned: await getCommissionFromRef(userId, u.id),
-    })));
-    const level2 = await Promise.all(level2Users.map(async (u) => ({
-      id: u.id,
-      phoneNumber: u.phoneNumber,
-      createdAt: u.createdAt,
-      level: 2,
-      referredById: u.referredById,
-      moneyEarned: await getCommissionFromRef(userId, u.id),
-    })));
-    const level3 = await Promise.all(level3Users.map(async (u) => ({
-      id: u.id,
-      phoneNumber: u.phoneNumber,
-      createdAt: u.createdAt,
-      level: 3,
-      referredById: u.referredById,
-      moneyEarned: await getCommissionFromRef(userId, u.id),
-    })));
+    const level1 = await Promise.all(
+      level1Users.map(async (u) => ({
+        id: u.id,
+        phoneNumber: u.phoneNumber,
+        createdAt: u.createdAt,
+        level: 1,
+        moneyEarned: await getCommissionFromRef(userId, u.id),
+      }))
+    );
+    const level2 = await Promise.all(
+      level2Users.map(async (u) => ({
+        id: u.id,
+        phoneNumber: u.phoneNumber,
+        createdAt: u.createdAt,
+        level: 2,
+        referredById: u.referredById,
+        moneyEarned: await getCommissionFromRef(userId, u.id),
+      }))
+    );
+    const level3 = await Promise.all(
+      level3Users.map(async (u) => ({
+        id: u.id,
+        phoneNumber: u.phoneNumber,
+        createdAt: u.createdAt,
+        level: 3,
+        referredById: u.referredById,
+        moneyEarned: await getCommissionFromRef(userId, u.id),
+      }))
+    );
 
     // Get total commission earned
     const totalCommission = await prisma.referralCommission.aggregate({
@@ -779,11 +866,7 @@ export class GameService {
       referralCode: userId.toString(),
       totalEarnings: totalCommission._sum.amount || 0,
       totalReferrals: level1.length + level2.length + level3.length,
-      referrals: [
-        ...level1,
-        ...level2,
-        ...level3,
-      ],
+      referrals: [...level1, ...level2, ...level3],
       referralsByLevel: {
         level1: level1.length,
         level2: level2.length,
@@ -807,7 +890,7 @@ export class GameService {
         },
       },
       orderBy: {
-        createdAt: 'desc',
+        createdAt: "desc",
       },
       take: limit,
     });
