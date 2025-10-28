@@ -614,16 +614,22 @@ export class GameService {
   /**
    * Get period history
    */
-  async getPeriodHistory(limit: number = 50) {
-    return await prisma.gamePeriod.findMany({
-      where: {
-        status: "completed",
-      },
-      orderBy: {
-        completedAt: "desc",
-      },
-      take: limit,
-    });
+  async getPeriodHistory(limit: number = 50, offset: number = 0) {
+    const [items, total] = await Promise.all([
+      prisma.gamePeriod.findMany({
+        where: {
+          status: "completed",
+        },
+        orderBy: {
+          completedAt: "desc",
+        },
+        skip: offset,
+        take: limit,
+      }),
+      prisma.gamePeriod.count({ where: { status: "completed" } }),
+    ]);
+
+    return { items, total };
   }
 
   /**
