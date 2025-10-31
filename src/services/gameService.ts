@@ -1,4 +1,5 @@
 import { PrismaClient, Color } from "@prisma/client";
+import type { Numbers } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
@@ -166,28 +167,17 @@ export class GameService {
 
     console.log(`🏁 Completing period: ${this.currentPeriod.periodId}`);
 
-    // Get total bets for each color
+    // Get period with latest color totals from DB
     const period = await prisma.gamePeriod.findUnique({
       where: { id: this.currentPeriod.id },
-      include: {
-        bets: true,
-      },
     });
 
     if (!period) return;
 
-    // Calculate total bets per color
-    const greenTotal = period.bets
-      .filter((bet) => bet.color === "green")
-      .reduce((sum, bet) => sum + bet.amount, 0);
-
-    const purpleTotal = period.bets
-      .filter((bet) => bet.color === "purple")
-      .reduce((sum, bet) => sum + bet.amount, 0);
-
-    const redTotal = period.bets
-      .filter((bet) => bet.color === "red")
-      .reduce((sum, bet) => sum + bet.amount, 0);
+    // Use color totals directly from DB
+    const greenTotal = period.totalGreenBets ?? 0;
+    const purpleTotal = period.totalPurpleBets ?? 0;
+    const redTotal = period.totalRedBets ?? 0;
 
     // Determine winning color (lowest bet amount)
     const colorTotals = [
@@ -196,11 +186,82 @@ export class GameService {
       { color: "red" as Color, total: redTotal },
     ];
 
-    const winningColorObj = colorTotals.reduce((min, current) =>
-      current.total < min.total ? current : min
-    );
+    const redNumberTotals = [
+      { number: "zero" as Numbers, total: period.totalZeroBets ?? 0 },
+      // { number: "one" as Numbers, total: period.totalOneBets ?? 0 },
+      { number: "two" as Numbers, total: period.totalTwoBets ?? 0 },
+      // { number: "three" as Numbers, total: period.totalThreeBets ?? 0 },
+      { number: "four" as Numbers, total: period.totalFourBets ?? 0 },
+      // { number: "five" as Numbers, total: period.totalFiveBets ?? 0 },
+      { number: "six" as Numbers, total: period.totalSixBets ?? 0 },
+      // { number: "seven" as Numbers, total: period.totalSevenBets ?? 0 },
+      { number: "eight" as Numbers, total: period.totalEightBets ?? 0 },
+      // { number: "nine" as Numbers, total: period.totalNineBets ?? 0 },
+    ];
 
-    const winningColor = winningColorObj.color;
+    const greenNumberTotals = [
+      // { number: "zero" as Numbers, total: period.totalZeroBets ?? 0 },
+      { number: "one" as Numbers, total: period.totalOneBets ?? 0 },
+      // { number: "two" as Numbers, total: period.totalTwoBets ?? 0 },
+      { number: "three" as Numbers, total: period.totalThreeBets ?? 0 },
+      // { number: "four" as Numbers, total: period.totalFourBets ?? 0 },
+      { number: "five" as Numbers, total: period.totalFiveBets ?? 0 },
+      // { number: "six" as Numbers, total: period.totalSixBets ?? 0 },
+      { number: "seven" as Numbers, total: period.totalSevenBets ?? 0 },
+      // { number: "eight" as Numbers, total: period.totalEightBets ?? 0 },
+      { number: "nine" as Numbers, total: period.totalNineBets ?? 0 },
+    ];
+
+    // Find the color with the lowest total, but never allow purple to win
+    let sortedColorTotals = [...colorTotals].sort((a, b) => a.total - b.total);
+    // Find the lowest non-purple color
+    let winningColorObj = sortedColorTotals.find((c) => c.color !== "purple");
+    if (!winningColorObj) {
+      // If all are purple, fallback to green or red
+      winningColorObj =
+        sortedColorTotals.find((c) => c.color === "green") ||
+        sortedColorTotals.find((c) => c.color === "red") ||
+        sortedColorTotals[0];
+    }
+
+    // Use greenNumberTotals or redNumberTotals based on winning color
+    let numberTotals: { number: Numbers; total: number }[] = [];
+    // Ensure winningColorObj is always defined
+    const safeWinningColorObj = winningColorObj || { color: "green", total: 0 };
+    if (safeWinningColorObj.color === "green") {
+      numberTotals = greenNumberTotals;
+    } else {
+      numberTotals = redNumberTotals;
+    }
+
+    let sortedNumberTotals = [...numberTotals].sort(
+      (a, b) => a.total - b.total
+    );
+    let winningNumberObj = sortedNumberTotals[0];
+
+    if (winningNumberObj) {
+      // If lowest is zero or five, randomly allow or skip
+      if (
+        winningNumberObj.number === "zero" ||
+        winningNumberObj.number === "five"
+      ) {
+        // 10% chance to allow zero/five to win
+        const allowZeroFive = Math.random() < 0.1;
+        if (!allowZeroFive) {
+          // Find next lowest that is not zero/five
+          const next = sortedNumberTotals.find(
+            (n) => n.number !== "zero" && n.number !== "five"
+          );
+          if (next) {
+            winningNumberObj = next;
+          }
+        }
+        // else keep zero/five as winner
+      }
+    }
+
+    const winningColor = safeWinningColorObj.color;
+    const winningNumber = winningNumberObj ? winningNumberObj.number : null;
 
     // Update period with winning color and totals
     await prisma.gamePeriod.update({
@@ -208,9 +269,7 @@ export class GameService {
       data: {
         status: "completed",
         winningColor,
-        totalGreenBets: greenTotal,
-        totalPurpleBets: purpleTotal,
-        totalRedBets: redTotal,
+        winningNumber,
         completedAt: new Date(),
       },
     });
@@ -220,7 +279,7 @@ export class GameService {
     );
 
     // Process all bets
-    await this.settleBets(period.id, winningColor);
+    await this.settleBets(period.id, winningColor, winningNumber);
 
     // Start next period
     await this.startOrResumePeriod();
@@ -229,11 +288,21 @@ export class GameService {
   /**
    * Settle all bets for a completed period
    */
-  private async settleBets(gamePeriodId: number, winningColor: Color) {
+  private async settleBets(
+    gamePeriodId: number,
+    winningColor: Color,
+    winningNumber: Numbers | null
+  ) {
     const settings = await prisma.gameSettings.findFirst();
     if (!settings) return;
 
-    const winMultiplier = settings.winMultiplier;
+    let winMultiplier = settings.winMultiplier;
+    let winMultiplierForNumberBet = settings.winMultiplierForNumberBet;
+
+    if (winningNumber === "zero" || winningNumber === "five") {
+      winMultiplierForNumberBet =
+        settings.winMultiplierForNumberBetOnZeroOrFive;
+    }
 
     // Get all bets for this period
     const bets = await prisma.bet.findMany({
@@ -242,7 +311,20 @@ export class GameService {
     });
 
     for (const bet of bets) {
-      const isWinner = bet.color === winningColor;
+      let isWinByNumberBet = false;
+      let isWinner = false;
+      if (!bet.number) {
+        // If no number is specified, check the color
+        isWinner = bet.color === winningColor;
+      } else {
+        isWinner = bet.number === winningNumber;
+        isWinByNumberBet = true;
+      }
+
+      isWinByNumberBet
+        ? (winMultiplier = winMultiplierForNumberBet)
+        : (winMultiplier = settings.winMultiplier);
+
       const winAmount = isWinner ? bet.amount * winMultiplier : 0;
 
       // Update bet status
@@ -272,16 +354,18 @@ export class GameService {
             type: "bet_win_credit",
             amount: winAmount,
             status: "completed",
-            description: `Win from bet on ${bet.color} - Period ${bet.periodId}`,
+            description: `Win from bet on Period ${bet.periodId}`,
             referenceId: bet.id.toString(),
             balanceBefore: currentBalance,
             balanceAfter: newBalance,
           },
         });
 
-        console.log(`💰 User ${bet.userId} won ${winAmount} on ${bet.color}`);
+        console.log(
+          `💰 User ${bet.userId} won ${winAmount} on Period ${bet.periodId}`
+        );
       } else {
-        console.log(`❌ User ${bet.userId} lost bet on ${bet.color}`);
+        console.log(`❌ User ${bet.userId} lost bet on Period ${bet.periodId}`);
       }
     }
   }
@@ -289,7 +373,24 @@ export class GameService {
   /**
    * Place a bet for a user
    */
-  async placeBet(userId: number, color: Color, amount: number) {
+  async placeBet(
+    userId: number,
+    color: Color | null,
+    number: Numbers | null,
+    amount: number
+  ) {
+    // Accept only color or number, not both or neither
+    const hasColor = !!color;
+    const hasNumber = !!number;
+    if (hasColor && hasNumber) {
+      throw new Error("You must bet on either color or number, not both.");
+    }
+    if (!hasColor && !hasNumber) {
+      throw new Error(
+        "You must bet on either color or number. Both cannot be null."
+      );
+    }
+
     // Validate betting is open
     if (!this.currentPeriod) {
       throw new Error("No active period");
@@ -347,6 +448,15 @@ export class GameService {
       data: { balance: newBalance },
     });
 
+    let betDescription = "";
+    if (!color) {
+      betDescription = `Bet on color ${color} - Period ${period.periodId}`;
+    }
+
+    if (!number) {
+      betDescription = `Bet on number ${number} - Period ${period.periodId}`;
+    }
+
     // Create transaction record for debit
     await prisma.transaction.create({
       data: {
@@ -354,7 +464,7 @@ export class GameService {
         type: "bet_debit",
         amount,
         status: "completed",
-        description: `Bet on ${color} - Period ${period.periodId}`,
+        description: betDescription,
         balanceBefore: user.balance,
         balanceAfter: newBalance,
       },
@@ -366,15 +476,75 @@ export class GameService {
         userId,
         periodId: period.periodId,
         gamePeriodId: period.id,
-        color,
+        color: hasColor ? color : (null as any),
+        number: hasNumber ? number : (null as any),
         amount,
         status: "pending",
       },
     });
 
-    console.log(
-      `🎲 User ${userId} placed bet of ${amount} on ${color} for period ${period.periodId}`
-    );
+    // Update color totals and number totals immediately after a bet
+    let colorField: string | null = null;
+    let numberField: string | null = null;
+
+    if (hasColor && color) {
+      if (color === "green") colorField = "totalGreenBets";
+      else if (color === "purple") colorField = "totalPurpleBets";
+      else if (color === "red") colorField = "totalRedBets";
+    } else if (hasNumber && number) {
+      if (number === "zero") {
+        colorField = "totalRedBets";
+        numberField = "totalZeroBets";
+      } else if (number === "one") {
+        colorField = "totalGreenBets";
+        numberField = "totalOneBets";
+      } else if (number === "two") {
+        colorField = "totalRedBets";
+        numberField = "totalTwoBets";
+      } else if (number === "three") {
+        colorField = "totalGreenBets";
+        numberField = "totalThreeBets";
+      } else if (number === "four") {
+        colorField = "totalRedBets";
+        numberField = "totalFourBets";
+      } else if (number === "five") {
+        colorField = "totalGreenBets";
+        numberField = "totalFiveBets";
+      } else if (number === "six") {
+        colorField = "totalRedBets";
+        numberField = "totalSixBets";
+      } else if (number === "seven") {
+        colorField = "totalGreenBets";
+        numberField = "totalSevenBets";
+      } else if (number === "eight") {
+        colorField = "totalRedBets";
+        numberField = "totalEightBets";
+      } else if (number === "nine") {
+        colorField = "totalGreenBets";
+        numberField = "totalNineBets";
+      }
+    }
+
+    if (colorField) {
+      await prisma.gamePeriod.update({
+        where: { id: period.id },
+        data: {
+          [colorField]: { increment: amount },
+        },
+      });
+      console.log(`Updated ${colorField} and ${numberField} by ${amount}`);
+    }
+
+    if (numberField) {
+      await prisma.gamePeriod.update({
+        where: { id: period.id },
+        data: {
+          [numberField]: { increment: amount },
+        },
+      });
+    }
+
+    console.log(`🎲 User ${userId} placed ${betDescription} of ${amount}`);
 
     // Process referral commissions
     await this.processReferralCommissions(userId, bet.id, amount, settings);
@@ -507,42 +677,7 @@ export class GameService {
   async getCurrentPeriod() {
     const now = new Date();
 
-    // Prefer the in-memory currentPeriod to avoid race conditions when a period
-    // is being rolled over but the database row for the next period isn't yet
-    // visible to quick reads. If the in-memory period appears valid for now,
-    // return it immediately.
-    if (this.currentPeriod) {
-      try {
-        const cp = this.currentPeriod as any;
-        if (
-          cp.startTime &&
-          cp.endTime &&
-          cp.startTime <= now &&
-          now < cp.endTime
-        ) {
-          const timeRemaining = Math.max(
-            0,
-            cp.endTime.getTime() - now.getTime()
-          );
-          const bettingTimeRemaining = Math.max(
-            0,
-            cp.bettingEndTime.getTime() - now.getTime()
-          );
-          const canBet = cp.status === "active" && bettingTimeRemaining > 0;
-          return {
-            ...cp,
-            timeRemaining: Math.floor(timeRemaining / 1000),
-            bettingTimeRemaining: Math.floor(bettingTimeRemaining / 1000),
-            canBet,
-          };
-        }
-      } catch (err) {
-        // If anything goes wrong reading in-memory period, fall back to DB lookup
-        console.warn("Warning reading in-memory currentPeriod:", err);
-      }
-    }
-
-    // Try to find a period that spans 'now' (handles DB visibility during rollovers)
+    // Always fetch the latest period data from the database
     let period = await prisma.gamePeriod.findFirst({
       where: {
         startTime: { lte: now },
@@ -553,7 +688,12 @@ export class GameService {
     // If not found in DB (possible race between end and creation), ensure service creates/resumes period
     if (!period) {
       await this.startOrResumePeriod();
-      period = this.currentPeriod as any;
+      period = await prisma.gamePeriod.findFirst({
+        where: {
+          startTime: { lte: now },
+          endTime: { gt: now },
+        },
+      });
     }
 
     if (!period) return null;
@@ -565,8 +705,25 @@ export class GameService {
     );
     const canBet = period.status === "active" && bettingTimeRemaining > 0;
 
+    // Exclude fields by destructuring
+    const {
+      // totalRedBets,
+      // totalGreenBets,
+      // totalPurpleBets,
+      // totalZeroBets,
+      // totalOneBets,
+      // totalTwoBets,
+      // totalThreeBets,
+      // totalFourBets,
+      // totalFiveBets,
+      // totalSixBets,
+      // totalSevenBets,
+      // totalEightBets,
+      // totalNineBets
+      ...filteredPeriod
+    } = period;
     return {
-      ...period,
+      ...filteredPeriod,
       timeRemaining: Math.floor(timeRemaining / 1000),
       bettingTimeRemaining: Math.floor(bettingTimeRemaining / 1000),
       canBet,

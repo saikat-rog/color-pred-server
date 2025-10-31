@@ -175,6 +175,8 @@ model GameSettings {
   periodDuration        Int      @default(180) @map("period_duration") // in seconds (3 minutes)
   bettingDuration       Int      @default(150) @map("betting_duration") // in seconds (2:30 minutes)
   winMultiplier         Float    @default(1.8) @map("win_multiplier") // multiplier for winning bets
+  winMultiplierForNumberBet   Float    @default(9.0) @map("win_multiplier_for_number_bet") // multiplier for winning number bets
+  winMultiplierForNumberBetOnZeroOrFive   Float    @default(5.0) @map("win_multiplier_for_number_bet_on_zero_or_five") // multiplier for winning number bets on zero or five
   minBetAmount          Float    @default(10) @map("min_bet_amount")
   maxBetAmount          Float    @default(10000000000) @map("max_bet_amount")
   referralCommissionPercentage1  Float    @default(1.0) @map("referral_commission_l1") // Level 1: Direct referral (1%)
@@ -196,9 +198,20 @@ model GamePeriod {
   bettingEndTime  DateTime  @map("betting_end_time") // endTime - 30 seconds
   status          String    @default("active") // active, betting_closed, completed
   winningColor    Color?    @map("winning_color")
+  winningNumber   Numbers?  @map("winning_number")
   totalGreenBets  Float     @default(0) @map("total_green_bets")
   totalPurpleBets Float     @default(0) @map("total_purple_bets")
   totalRedBets    Float     @default(0) @map("total_red_bets")
+  totalZeroBets   Float     @default(0) @map("total_zero_bets")
+  totalOneBets    Float     @default(0) @map("total_one_bets")
+  totalTwoBets    Float     @default(0) @map("total_two_bets")
+  totalThreeBets  Float     @default(0) @map("total_three_bets")
+  totalFourBets   Float     @default(0) @map("total_four_bets")
+  totalFiveBets   Float     @default(0) @map("total_five_bets")
+  totalSixBets    Float     @default(0) @map("total_six_bets")
+  totalSevenBets  Float     @default(0) @map("total_seven_bets")
+  totalEightBets  Float     @default(0) @map("total_eight_bets")
+  totalNineBets   Float     @default(0) @map("total_nine_bets")
   createdAt       DateTime  @default(now()) @map("created_at")
   completedAt     DateTime? @map("completed_at")
 
@@ -217,7 +230,8 @@ model Bet {
   userId          Int        @map("user_id")
   periodId        String     @map("period_id")
   gamePeriodId    Int        @map("game_period_id")
-  color           Color
+  color           Color?
+  number          Numbers?
   amount          Float
   status          String     @default("pending") // pending, won, lost
   winAmount       Float?     @map("win_amount")

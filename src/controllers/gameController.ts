@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { gameService } from "../services/gameService";
-import type { Color } from "@prisma/client";
+import type { Color, Numbers } from "@prisma/client";
 
 /**
  * Get current game period information
@@ -39,7 +39,7 @@ export const getCurrentPeriod = async (
 export const placeBet = async (req: Request, res: Response): Promise<any> => {
   try {
     const userId = req.user?.userId;
-    const { color, amount } = req.body;
+    const { color, amount, number } = req.body;
 
     if (!userId) {
       return res.status(401).json({
@@ -50,10 +50,26 @@ export const placeBet = async (req: Request, res: Response): Promise<any> => {
 
     // Validate input
     if (!color || !["green", "purple", "red"].includes(color.toLowerCase())) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid color. Must be green, purple, or red",
-      });
+      if (
+        !number ||
+        ![
+          "one",
+          "two",
+          "three",
+          "four",
+          "five",
+          "six",
+          "seven",
+          "eight",
+          "nine",
+        ].includes(number.toLowerCase())
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Bet on invalid color. Must be green, purple, or red and also invalid number. Must be one, two, three, four, five, six, seven, eight, or nine",
+        });
+      }
     }
 
     if (!amount || typeof amount !== "number" || amount <= 0) {
@@ -63,9 +79,31 @@ export const placeBet = async (req: Request, res: Response): Promise<any> => {
       });
     }
 
+    let numbersEnum: Numbers | null = null;
+    if (number && typeof number === "string") {
+      const normalized = number.trim().toLowerCase();
+      if (
+        [
+          "zero",
+          "one",
+          "two",
+          "three",
+          "four",
+          "five",
+          "six",
+          "seven",
+          "eight",
+          "nine",
+        ].includes(normalized)
+      ) {
+        numbersEnum = normalized as Numbers;
+      }
+    }
+
     const bet = await gameService.placeBet(
       userId,
-      color.toLowerCase() as Color,
+      color ? (color.toLowerCase() as Color) : null,
+      numbersEnum,
       amount
     );
 
