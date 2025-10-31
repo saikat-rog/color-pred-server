@@ -53,6 +53,7 @@ export const placeBet = async (req: Request, res: Response): Promise<any> => {
       if (
         !number ||
         ![
+          "zero",
           "one",
           "two",
           "three",
