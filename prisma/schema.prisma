@@ -156,6 +156,19 @@ enum Color {
   red
 }
 
+enum Numbers {
+  zero
+  one
+  two
+  three
+  four
+  five
+  six
+  seven
+  eight
+  nine
+}
+
 // Game settings model for configurable parameters
 model GameSettings {
   id                    Int      @id @default(autoincrement())
