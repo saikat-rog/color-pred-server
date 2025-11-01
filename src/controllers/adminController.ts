@@ -149,7 +149,7 @@ export class AdminController {
         return;
       }
 
-      const now = new Date();
+      const now =  getIstDate();
       const ageMs = now.getTime() - new Date(user.createdAt).getTime();
       const ageDays = Math.floor(ageMs / (1000 * 60 * 60 * 24));
 

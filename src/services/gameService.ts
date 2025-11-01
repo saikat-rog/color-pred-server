@@ -1,5 +1,6 @@
 import { PrismaClient, Color } from "@prisma/client";
 import type { Numbers } from "@prisma/client";
+import { getIstDate } from "../utils/getIstDate";
 
 const prisma = new PrismaClient();
 
@@ -127,7 +128,7 @@ export class GameService {
     this.currentPeriod = period;
 
     // Schedule period end
-    const now = new Date();
+    const now =  getIstDate();
     const timeUntilEnd = period.endTime.getTime() - now.getTime();
     if (timeUntilEnd > 0) {
       this.schedulePeriodEnd(timeUntilEnd);
@@ -439,7 +440,7 @@ export class GameService {
       throw new Error("No active period");
     }
 
-    const now = new Date();
+    const now =  getIstDate();
     const period = await prisma.gamePeriod.findUnique({
       where: { id: this.currentPeriod.id },
     });
@@ -718,7 +719,11 @@ export class GameService {
    * Get current period information
    */
   async getCurrentPeriod() {
-    const now = new Date();
+    let now = new Date();
+
+    // Convert current UTC time to IST
+    const istOffset = 5.5 * 60 * 60 * 1000; // +05:30 in ms
+    now = new Date(now.getTime() + istOffset);
 
     // Prefer the in-memory currentPeriod to avoid race conditions when a period
     // is being rolled over but the database row for the next period isn't yet
