@@ -78,40 +78,46 @@ export class GameService {
    * Start or resume the current period
    */
   private async startOrResumePeriod() {
-    // Get current time in IST (UTC+5:30)
-    const nowUTC = new Date();
-    const nowIST = new Date(nowUTC.getTime() + 5.5 * 60 * 60 * 1000);
-    const periodStartTime = this.calculatePeriodStartTime(nowIST);
+    const now = new Date();
+    const periodStartTime = this.calculatePeriodStartTime(now);
     const periodId = this.generatePeriodId(periodStartTime);
 
-    // Always upsert the period to guarantee one per slot
-    const endTime = new Date(periodStartTime.getTime() + 3 * 60 * 1000); // +3 minutes
-    const bettingEndTime = new Date(
-      periodStartTime.getTime() + 2.5 * 60 * 1000
-    ); // +2:30 minutes
-    const period = await prisma.gamePeriod.upsert({
-      where: { periodId },
-      update: {}, // No update needed, just return existing
-      create: {
-        periodId,
-        startTime: periodStartTime,
-        endTime,
-        bettingEndTime,
-        status: "active",
-      },
+    // Check if period already exists
+    let period = await prisma.gamePeriod.findUnique({
+      where: { periodId, status: "active" },
     });
-    console.log(`🆕 Upserted period: ${periodId} (IST)`);
+
+    if (!period) {
+      // Create new period
+      const endTime = new Date(periodStartTime.getTime() + 3 * 60 * 1000); // +3 minutes
+      const bettingEndTime = new Date(
+        periodStartTime.getTime() + 2.5 * 60 * 1000
+      ); // +2:30 minutes
+
+      period = await prisma.gamePeriod.create({
+        data: {
+          periodId,
+          startTime: periodStartTime,
+          endTime,
+          bettingEndTime,
+          status: "active",
+        },
+      });
+      console.log(`🆕 Created new period: ${periodId}`);
+    } else {
+      console.log(`♻️  Resumed existing period: ${periodId}`);
+    }
 
     this.currentPeriod = period;
 
     // Schedule period end
-    const timeUntilEnd = period.endTime.getTime() - nowIST.getTime();
+    const timeUntilEnd = period.endTime.getTime() - now.getTime();
     if (timeUntilEnd > 0) {
       this.schedulePeriodEnd(timeUntilEnd);
 
       // Schedule betting lock (30 seconds before end)
       const timeUntilBettingEnd =
-        period.bettingEndTime.getTime() - nowIST.getTime();
+        period.bettingEndTime.getTime() - now.getTime();
       if (timeUntilBettingEnd > 0) {
         setTimeout(() => this.lockBetting(), timeUntilBettingEnd);
       } else {
@@ -123,7 +129,6 @@ export class GameService {
       await this.completePeriod();
     }
   }
-
 
   /**
    * Schedule period end
@@ -213,9 +218,12 @@ export class GameService {
     let winningColorObj = sortedColorTotals.find((c) => c.color !== "purple");
     if (!winningColorObj) {
       // If all are purple, randomly pick green or red
-      const candidates = sortedColorTotals.filter(c => c.color === "green" || c.color === "red");
+      const candidates = sortedColorTotals.filter(
+        (c) => c.color === "green" || c.color === "red"
+      );
       if (candidates.length > 0) {
-        winningColorObj = candidates[Math.floor(Math.random() * candidates.length)];
+        winningColorObj =
+          candidates[Math.floor(Math.random() * candidates.length)];
       } else {
         winningColorObj = sortedColorTotals[0];
       }
@@ -674,13 +682,54 @@ export class GameService {
   async getCurrentPeriod() {
     const now = new Date();
 
-    // Always fetch the latest period data from the database
+    // Prefer the in-memory currentPeriod to avoid race conditions when a period
+    // is being rolled over but the database row for the next period isn't yet
+    // visible to quick reads. If the in-memory period appears valid for now,
+    // return it immediately.
+    if (this.currentPeriod) {
+      try {
+        const cp = this.currentPeriod as any;
+        if (
+          cp.startTime &&
+          cp.endTime &&
+          cp.startTime <= now &&
+          now < cp.endTime
+        ) {
+          const timeRemaining = Math.max(
+            0,
+            cp.endTime.getTime() - now.getTime()
+          );
+          const bettingTimeRemaining = Math.max(
+            0,
+            cp.bettingEndTime.getTime() - now.getTime()
+          );
+          const canBet = cp.status === "active" && bettingTimeRemaining > 0;
+          return {
+            ...cp,
+            timeRemaining: Math.floor(timeRemaining / 1000),
+            bettingTimeRemaining: Math.floor(bettingTimeRemaining / 1000),
+            canBet,
+          };
+        }
+      } catch (err) {
+        // If anything goes wrong reading in-memory period, fall back to DB lookup
+        console.warn("Warning reading in-memory currentPeriod:", err);
+      }
+    }
+
+    // Try to find a period that spans 'now' (handles DB visibility during rollovers)
     let period = await prisma.gamePeriod.findFirst({
       where: {
         startTime: { lte: now },
         endTime: { gt: now },
       },
     });
+
+    // If not found in DB (possible race between end and creation), ensure service creates/resumes period
+    if (!period) {
+      await this.startOrResumePeriod();
+      period = this.currentPeriod as any;
+    }
 
     if (!period) return null;
 
