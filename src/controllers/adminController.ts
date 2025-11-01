@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import { config } from '../config';
 import { databaseService } from '../services/databaseService';
 import { PrismaClient } from '@prisma/client'
+import { getIstDate } from '../utils/getIstDate';
 
 const prisma = new PrismaClient();
 
