@@ -63,11 +63,15 @@ export class GameService {
    * Calculate the start time for the current period
    */
   private calculatePeriodStartTime(now: Date): Date {
-    const minutesFromMidnight = now.getHours() * 60 + now.getMinutes();
+    // Convert current UTC time to IST
+    const istOffset = 5.5 * 60 * 60 * 1000; // +05:30 in ms
+    const istNow = new Date(now.getTime() + istOffset);
+
+    const minutesFromMidnight = istNow.getHours() * 60 + istNow.getMinutes();
     const periodIndex = Math.floor(minutesFromMidnight / 3);
     const periodStartMinutes = periodIndex * 3;
 
-    const startTime = new Date(now);
+    const startTime = new Date(istNow);
     startTime.setHours(0, 0, 0, 0);
     startTime.setMinutes(periodStartMinutes);
 
@@ -80,7 +84,7 @@ export class GameService {
   private async startOrResumePeriod() {
     // Find the last period (any status)
     const lastPeriod = await prisma.gamePeriod.findFirst({
-      orderBy: { endTime: "desc" }
+      orderBy: { endTime: "desc" },
     });
 
     let periodStartTime;
@@ -96,7 +100,7 @@ export class GameService {
     // Strictly check for any existing period with this periodId
     let period = await prisma.gamePeriod.findFirst({
       where: { periodId },
-      orderBy: { id: "asc" }
+      orderBy: { id: "asc" },
     });
 
     if (!period) {
