@@ -78,13 +78,25 @@ export class GameService {
    * Start or resume the current period
    */
   private async startOrResumePeriod() {
-    const now = new Date();
-    const periodStartTime = this.calculatePeriodStartTime(now);
+    // Find the last period (any status)
+    const lastPeriod = await prisma.gamePeriod.findFirst({
+      orderBy: { endTime: "desc" }
+    });
+
+    let periodStartTime;
+    if (lastPeriod) {
+      // Start next period exactly at the end of the last period
+      periodStartTime = new Date(lastPeriod.endTime);
+    } else {
+      // No previous period, use current time rounded to slot
+      periodStartTime = this.calculatePeriodStartTime(new Date());
+    }
     const periodId = this.generatePeriodId(periodStartTime);
 
-    // Check if period already exists
-    let period = await prisma.gamePeriod.findUnique({
-      where: { periodId, status: "active" },
+    // Strictly check for any existing period with this periodId
+    let period = await prisma.gamePeriod.findFirst({
+      where: { periodId },
+      orderBy: { id: "asc" }
     });
 
     if (!period) {
@@ -111,6 +123,7 @@ export class GameService {
     this.currentPeriod = period;
 
     // Schedule period end
+    const now = new Date();
     const timeUntilEnd = period.endTime.getTime() - now.getTime();
     if (timeUntilEnd > 0) {
       this.schedulePeriodEnd(timeUntilEnd);
@@ -214,25 +227,36 @@ export class GameService {
 
     // Find the color with the lowest total, but never allow purple to win
     let sortedColorTotals = [...colorTotals].sort((a, b) => a.total - b.total);
-    // Find the lowest non-purple color
-    let winningColorObj = sortedColorTotals.find((c) => c.color !== "purple");
-    if (!winningColorObj) {
-      // If all are purple, randomly pick green or red
+
+    // If all color totals are zero, randomly pick green or red
+    const allZero = sortedColorTotals.every((c) => c.total === 0);
+    let winningColorObj;
+    if (allZero) {
       const candidates = sortedColorTotals.filter(
         (c) => c.color === "green" || c.color === "red"
       );
-      if (candidates.length > 0) {
-        winningColorObj =
-          candidates[Math.floor(Math.random() * candidates.length)];
-      } else {
-        winningColorObj = sortedColorTotals[0];
+      winningColorObj = candidates[Math.floor(Math.random() * 2)];
+    } else {
+      // Find the lowest non-purple color
+      winningColorObj = sortedColorTotals.find((c) => c.color !== "purple");
+      if (!winningColorObj) {
+        // If all are purple, randomly pick green or red
+        const candidates = sortedColorTotals.filter(
+          (c) => c.color === "green" || c.color === "red"
+        );
+        if (candidates.length > 0) {
+          winningColorObj =
+            candidates[Math.floor(Math.random() * candidates.length)];
+        } else {
+          winningColorObj = sortedColorTotals[0];
+        }
       }
     }
 
     // Use greenNumberTotals or redNumberTotals based on winning color
     let numberTotals: { number: Numbers; total: number }[] = [];
     // Ensure winningColorObj is always defined
-    const safeWinningColorObj = winningColorObj || { color: "green", total: 0 };
+    const safeWinningColorObj = winningColorObj || { color: "red", total: 0 };
     if (safeWinningColorObj.color === "green") {
       numberTotals = greenNumberTotals;
     } else {
@@ -242,26 +266,36 @@ export class GameService {
     let sortedNumberTotals = [...numberTotals].sort(
       (a, b) => a.total - b.total
     );
-    let winningNumberObj = sortedNumberTotals[0];
 
-    if (winningNumberObj) {
-      // If lowest is zero or five, randomly allow or skip
-      if (
-        winningNumberObj.number === "zero" ||
-        winningNumberObj.number === "five"
-      ) {
-        // 10% chance to allow zero/five to win
-        const allowZeroFive = Math.random() < 0.1;
-        if (!allowZeroFive) {
-          // Find next lowest that is not zero/five
-          const next = sortedNumberTotals.find(
-            (n) => n.number !== "zero" && n.number !== "five"
-          );
-          if (next) {
-            winningNumberObj = next;
+    // If all number totals are zero, randomly pick one
+    const allNumberZero = sortedNumberTotals.every((n) => n.total === 0);
+    let winningNumberObj;
+    if (allNumberZero) {
+      winningNumberObj =
+        sortedNumberTotals[
+          Math.floor(Math.random() * sortedNumberTotals.length)
+        ];
+    } else {
+      winningNumberObj = sortedNumberTotals[0];
+      if (winningNumberObj) {
+        // If lowest is zero or five, randomly allow or skip
+        if (
+          winningNumberObj.number === "zero" ||
+          winningNumberObj.number === "five"
+        ) {
+          // 10% chance to allow zero/five to win
+          const allowZeroFive = Math.random() < 0.1;
+          if (!allowZeroFive) {
+            // Find next lowest that is not zero/five
+            const next = sortedNumberTotals.find(
+              (n) => n.number !== "zero" && n.number !== "five"
+            );
+            if (next) {
+              winningNumberObj = next;
+            }
           }
+          // else keep zero/five as winner
         }
-        // else keep zero/five as winner
       }
     }
 
@@ -686,36 +720,36 @@ export class GameService {
     // is being rolled over but the database row for the next period isn't yet
     // visible to quick reads. If the in-memory period appears valid for now,
     // return it immediately.
-    if (this.currentPeriod) {
-      try {
-        const cp = this.currentPeriod as any;
-        if (
-          cp.startTime &&
-          cp.endTime &&
-          cp.startTime <= now &&
-          now < cp.endTime
-        ) {
-          const timeRemaining = Math.max(
-            0,
-            cp.endTime.getTime() - now.getTime()
-          );
-          const bettingTimeRemaining = Math.max(
-            0,
-            cp.bettingEndTime.getTime() - now.getTime()
-          );
-          const canBet = cp.status === "active" && bettingTimeRemaining > 0;
-          return {
-            ...cp,
-            timeRemaining: Math.floor(timeRemaining / 1000),
-            bettingTimeRemaining: Math.floor(bettingTimeRemaining / 1000),
-            canBet,
-          };
-        }
-      } catch (err) {
-        // If anything goes wrong reading in-memory period, fall back to DB lookup
-        console.warn("Warning reading in-memory currentPeriod:", err);
-      }
-    }
+    // if (this.currentPeriod) {
+    //   try {
+    //     const cp = this.currentPeriod as any;
+    //     if (
+    //       cp.startTime &&
+    //       cp.endTime &&
+    //       cp.startTime <= now &&
+    //       now < cp.endTime
+    //     ) {
+    //       const timeRemaining = Math.max(
+    //         0,
+    //         cp.endTime.getTime() - now.getTime()
+    //       );
+    //       const bettingTimeRemaining = Math.max(
+    //         0,
+    //         cp.bettingEndTime.getTime() - now.getTime()
+    //       );
+    //       const canBet = cp.status === "active" && bettingTimeRemaining > 0;
+    //       return {
+    //         ...cp,
+    //         timeRemaining: Math.floor(timeRemaining / 1000),
+    //         bettingTimeRemaining: Math.floor(bettingTimeRemaining / 1000),
+    //         canBet,
+    //       };
+    //     }
+    //   } catch (err) {
+    //     // If anything goes wrong reading in-memory period, fall back to DB lookup
+    //     console.warn("Warning reading in-memory currentPeriod:", err);
+    //   }
+    // }
 
     // Try to find a period that spans 'now' (handles DB visibility during rollovers)
     let period = await prisma.gamePeriod.findFirst({
@@ -726,10 +760,10 @@ export class GameService {
     });
 
     // If not found in DB (possible race between end and creation), ensure service creates/resumes period
-    if (!period) {
-      await this.startOrResumePeriod();
-      period = this.currentPeriod as any;
-    }
+    // if (!period) {
+    //   await this.startOrResumePeriod();
+    //   period = this.currentPeriod as any;
+    // }
 
     if (!period) return null;
 
