@@ -78,46 +78,40 @@ export class GameService {
    * Start or resume the current period
    */
   private async startOrResumePeriod() {
-    const now = new Date();
-    const periodStartTime = this.calculatePeriodStartTime(now);
+    // Get current time in IST (UTC+5:30)
+    const nowUTC = new Date();
+    const nowIST = new Date(nowUTC.getTime() + 5.5 * 60 * 60 * 1000);
+    const periodStartTime = this.calculatePeriodStartTime(nowIST);
     const periodId = this.generatePeriodId(periodStartTime);
 
-    // Check if period already exists
-    let period = await prisma.gamePeriod.findUnique({
+    // Always upsert the period to guarantee one per slot
+    const endTime = new Date(periodStartTime.getTime() + 3 * 60 * 1000); // +3 minutes
+    const bettingEndTime = new Date(
+      periodStartTime.getTime() + 2.5 * 60 * 1000
+    ); // +2:30 minutes
+    const period = await prisma.gamePeriod.upsert({
       where: { periodId },
+      update: {}, // No update needed, just return existing
+      create: {
+        periodId,
+        startTime: periodStartTime,
+        endTime,
+        bettingEndTime,
+        status: "active",
+      },
     });
-
-    if (!period) {
-      // Create new period
-      const endTime = new Date(periodStartTime.getTime() + 3 * 60 * 1000); // +3 minutes
-      const bettingEndTime = new Date(
-        periodStartTime.getTime() + 2.5 * 60 * 1000
-      ); // +2:30 minutes
-
-      period = await prisma.gamePeriod.create({
-        data: {
-          periodId,
-          startTime: periodStartTime,
-          endTime,
-          bettingEndTime,
-          status: "active",
-        },
-      });
-      console.log(`🆕 Created new period: ${periodId}`);
-    } else {
-      console.log(`♻️  Resumed existing period: ${periodId}`);
-    }
+    console.log(`🆕 Upserted period: ${periodId} (IST)`);
 
     this.currentPeriod = period;
 
     // Schedule period end
-    const timeUntilEnd = period.endTime.getTime() - now.getTime();
+    const timeUntilEnd = period.endTime.getTime() - nowIST.getTime();
     if (timeUntilEnd > 0) {
       this.schedulePeriodEnd(timeUntilEnd);
 
       // Schedule betting lock (30 seconds before end)
       const timeUntilBettingEnd =
-        period.bettingEndTime.getTime() - now.getTime();
+        period.bettingEndTime.getTime() - nowIST.getTime();
       if (timeUntilBettingEnd > 0) {
         setTimeout(() => this.lockBetting(), timeUntilBettingEnd);
       } else {
@@ -129,6 +123,7 @@ export class GameService {
       await this.completePeriod();
     }
   }
+
 
   /**
    * Schedule period end
@@ -217,11 +212,13 @@ export class GameService {
     // Find the lowest non-purple color
     let winningColorObj = sortedColorTotals.find((c) => c.color !== "purple");
     if (!winningColorObj) {
-      // If all are purple, fallback to green or red
-      winningColorObj =
-        sortedColorTotals.find((c) => c.color === "green") ||
-        sortedColorTotals.find((c) => c.color === "red") ||
-        sortedColorTotals[0];
+      // If all are purple, randomly pick green or red
+      const candidates = sortedColorTotals.filter(c => c.color === "green" || c.color === "red");
+      if (candidates.length > 0) {
+        winningColorObj = candidates[Math.floor(Math.random() * candidates.length)];
+      } else {
+        winningColorObj = sortedColorTotals[0];
+      }
     }
 
     // Use greenNumberTotals or redNumberTotals based on winning color
@@ -684,17 +681,6 @@ export class GameService {
         endTime: { gt: now },
       },
     });
-
-    // If not found in DB (possible race between end and creation), ensure service creates/resumes period
-    if (!period) {
-      await this.startOrResumePeriod();
-      period = await prisma.gamePeriod.findFirst({
-        where: {
-          startTime: { lte: now },
-          endTime: { gt: now },
-        },
-      });
-    }
 
     if (!period) return null;
 
