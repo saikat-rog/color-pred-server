@@ -128,7 +128,7 @@ export class GameService {
     this.currentPeriod = period;
 
     // Schedule period end
-    const now =  getIstDate();
+    const now = getIstDate();
     const timeUntilEnd = period.endTime.getTime() - now.getTime();
     if (timeUntilEnd > 0) {
       this.schedulePeriodEnd(timeUntilEnd);
@@ -440,7 +440,7 @@ export class GameService {
       throw new Error("No active period");
     }
 
-    const now =  getIstDate();
+    const now = getIstDate();
     const period = await prisma.gamePeriod.findUnique({
       where: { id: this.currentPeriod.id },
     });
@@ -826,24 +826,34 @@ export class GameService {
   /**
    * Get user's bet history
    */
-  async getUserBetHistory(userId: number, limit: number = 50) {
-    return await prisma.bet.findMany({
-      where: { userId },
-      include: {
-        gamePeriod: {
-          select: {
-            periodId: true,
-            winningColor: true,
-            status: true,
-            completedAt: true,
+  async getUserBetHistory(
+    userId: number,
+    limit: number = 50,
+    offset: number = 0
+  ) {
+    const [items, total] = await Promise.all([
+      prisma.bet.findMany({
+        where: { userId },
+        include: {
+          gamePeriod: {
+            select: {
+              periodId: true,
+              winningColor: true,
+              status: true,
+              completedAt: true,
+            },
           },
         },
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-      take: limit,
-    });
+        orderBy: {
+          createdAt: "desc",
+        },
+        skip: offset,
+        take: limit,
+      }),
+      prisma.gamePeriod.count({ where: { status: "completed" } }),
+    ]);
+
+    return { items, total };
   }
 
   /**
