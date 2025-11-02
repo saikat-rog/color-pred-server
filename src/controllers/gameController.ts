@@ -192,7 +192,8 @@ export const getUserBetHistory = async (
   try {
     const userId = req.user?.userId;
     const limit = parseInt(req.query.limit as string) || 50;
-
+    const offset = parseInt(req.query.offset as string) || 0;
+    
     if (!userId) {
       return res.status(401).json({
         success: false,
@@ -200,11 +201,11 @@ export const getUserBetHistory = async (
       });
     }
 
-    const bets = await gameService.getUserBetHistory(userId, limit);
+    const {items: bets, total} = await gameService.getUserBetHistory(userId, limit, offset);
 
     res.json({
       success: true,
-      data: bets,
+      data: {bets, total, limit, offset},
     });
   } catch (error: any) {
     console.error("Error fetching bet history:", error);
