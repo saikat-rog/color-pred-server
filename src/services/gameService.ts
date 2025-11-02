@@ -850,7 +850,7 @@ export class GameService {
         skip: offset,
         take: limit,
       }),
-      prisma.gamePeriod.count({ where: { status: "completed" } }),
+      prisma.bet.count({ where: { userId } }),
     ]);
 
     return { items, total };
