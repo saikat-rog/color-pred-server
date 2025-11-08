@@ -1,10 +1,5 @@
 import { Request, Response } from "express";
 import { databaseService } from "../services/databaseService";
-import { PaymentService } from "../services/paymentService";
-import { config } from "../config";
-import crypto from "crypto";
-import axios from "axios";
-import { validate } from "uuid";
 
 class UserController {
   /**
@@ -541,89 +536,6 @@ class UserController {
       });
     } catch (error) {
       console.error("Error in getTransactions:", error);
-      res.status(500).json({
-        success: false,
-        message: "Internal server error",
-      });
-    }
-  }
-
-  /**
-   * Add recharge to user account
-   */
-  async initiateRecharge(req: Request, res: Response): Promise<void> {
-    const paymentService = new PaymentService();
-
-    try {
-      const userId = (req as any).user?.userId;
-      const { amount, description, paymentMethod } = req.body;
-
-      if (!userId) {
-        res.status(401).json({
-          success: false,
-          message: "User not authenticated",
-        });
-        return;
-      }
-
-      // Load game service and settings to get minimum recharge amount
-      const gameServiceModule = await import("../services/gameService");
-      const gameService = gameServiceModule.gameService;
-      const settings = await gameService.getGameSettings();
-      const minRecharge = (settings as any)?.minRechargeAmount ?? 200;
-      const maxRecharge = (settings as any)?.maxRechargeAmount ?? 50000;
-
-      // Validate the recharge amount
-      if (!amount || amount < minRecharge || amount > maxRecharge) {
-        res.status(400).json({
-          success: false,
-          message: `Minimum recharge amount is ₹${minRecharge} and maximum is ₹${maxRecharge}`,
-        });
-        return;
-      }
-
-      // Route to correct payment method handler
-      let result: any;
-      switch (paymentMethod) {
-        
-        case "bondpay":
-          result = await paymentService.initiatePaymentWithBondPay(
-            userId,
-            amount,
-            description
-          );
-          break;
-
-        case "onepay":
-          result = {
-            success: false,
-            statusCode: 501,
-            message: "OnePay integration is not yet implemented",
-          }
-          break;
-
-        // Handle default case where payment method is not recognized
-        default:
-          result = await paymentService.initiatePaymentWithBondPay(
-            userId,
-            amount,
-            description
-          );
-          break;
-      }
-
-      // Capture the result and respond accordingly
-      if (!result || result.success === false) {
-        const code = result?.statusCode || 502;
-        res.status(code).json(result);
-        return;
-      }
-
-      res.status(200).json(result);
-      return;
-
-    } catch (error) {
-      console.error("Error in initiateRecharge:", error);
       res.status(500).json({
         success: false,
         message: "Internal server error",

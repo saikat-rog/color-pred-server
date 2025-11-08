@@ -82,13 +82,13 @@ export class PaymentService {
       userId,
       type: "recharge",
       amount: Number(amount),
-      description: description || `Recharge via BondPay (ORDER NUM: ${providerResponse?.order_no || 'N/A'})`,
-      referenceId: merchant_order_no,
+      description: description || `Recharge via BondPay`,
+      transactionId: merchant_order_no,
+      referenceId: signature
     };
 
     // Use the dedicated helper which creates a transaction for wallet recharge
-    const transaction =
-      await databaseService.createTransactionForWalletRecharge(transactionData);
+    await databaseService.createTransactionForWalletRecharge(transactionData);
 
     // Process referral bonus if applicable (use already-imported gameService)
     // await gameService.processReferralBonus(userId, amount);
@@ -104,7 +104,6 @@ export class PaymentService {
         amount: amount,
         paymentUrl,
         merchantOrderNo: merchant_order_no,
-        providerOrderNo: providerResponse?.order_no,
       },
     };
   }

@@ -1,4 +1,11 @@
-import { PrismaClient, User, OTPSession, RefreshToken, Transaction, TransactionType } from "@prisma/client";
+import {
+  PrismaClient,
+  User,
+  OTPSession,
+  RefreshToken,
+  Transaction,
+  TransactionType,
+} from "@prisma/client";
 
 class DatabaseService {
   private prisma: PrismaClient;
@@ -474,9 +481,9 @@ class DatabaseService {
     type: string;
     amount: number;
     description?: string;
+    transactionId?: string;
     referenceId?: string;
   }): Promise<any> {
-
     // Fetch current user balance to determine balanceBefore
     const user = await this.prisma.user.findUnique({
       where: { id: data.userId },
@@ -487,12 +494,14 @@ class DatabaseService {
 
     return await this.prisma.transaction.create({
       data: {
+        // Include transactionId only if provided; otherwise let the DB default (uuid()) kick in
+        ...(data.transactionId ? { transactionId: data.transactionId } : {}),
         userId: data.userId,
         type: data.type as TransactionType,
         amount: data.amount,
         status: "pending",
-        description: data.description || null,
-        referenceId: data.referenceId || null,
+        description: data.description ?? null,
+        referenceId: data.referenceId ?? null,
         balanceBefore,
         balanceAfter: balanceBefore,
       },

@@ -110,6 +110,7 @@ model WithdrawalRequest {
 // Transaction model for tracking all financial activities
 model Transaction {
   id              Int               @id @default(autoincrement())
+  transactionId   String            @unique @default(uuid()) @map("transaction_id")
   userId          Int               @map("user_id")
   type            TransactionType
   amount          Float

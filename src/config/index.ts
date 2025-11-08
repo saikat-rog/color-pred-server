@@ -37,4 +37,8 @@ export const config = {
     apiKey: process.env.GATEWAY_BONDPAY_API_KEY || '',
     callbackUrl: process.env.GATEWAY_BONDPAY_CALLBACK_URL || '',
   },
+
+  frontend: {
+    baseUrl: process.env.FRONTEND_BASE_URL || 'www.google.com',
+  }
 };

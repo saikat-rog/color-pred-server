@@ -113,13 +113,4 @@ router.delete('/withdrawal-requests/:id', userController.cancelWithdrawalRequest
  */
 router.get('/transactions', userController.getTransactions.bind(userController));
 
-/**
- * @route   POST /api/user/recharge
- * @desc    Add recharge to user account
- * @access  Private
- * @headers Authorization: Bearer <token>
- * @body    { amount: number, transactionId?: string, description?: string }
- */
-router.post('/recharge', userController.initiateRecharge.bind(userController));
-
 export { router as userRoutes };
