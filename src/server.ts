@@ -111,13 +111,10 @@ async function startServer() {
     // Initialize game service
     await gameService.initialize();
 
-    const HOST = process.env.HOST || '0.0.0.0';
-    console.log(`Attempting to bind server on ${HOST}:${PORT} ...`);
-
-    const server = app.listen(PORT, HOST);
+    const server = app.listen(PORT, '0.0.0.0:8080');
 
     server.on('listening', () => {
-      console.log(`Color game Server running on port ${PORT} (bound to ${HOST})`);
+      console.log(`Color game Server running on port ${PORT} (bound to 0.0.0.0)`);
       console.log(`🌍 Environment: ${config.nodeEnv}`);
     });
 
