@@ -111,7 +111,7 @@ async function startServer() {
     // Initialize game service
     await gameService.initialize();
 
-    const server = app.listen(PORT, '0.0.0.0:8080');
+    const server = app.listen(PORT, '0.0.0.0');
 
     server.on('listening', () => {
       console.log(`Color game Server running on port ${PORT} (bound to 0.0.0.0)`);
