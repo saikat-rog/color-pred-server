@@ -39,6 +39,8 @@ export class GameService {
           referralCommissionPercentage3: 0.25, // Level 3: 0.25%
           referralSignupBonusInRs: 1.0, // 1 Rs bonus
           minRechargeForBonus: 500.0, // Minimum 500 Rs recharge
+          minRechargeAmount: 200.0,
+          maxRechargeAmount: 50000.0,
         },
       });
       console.log("✅ Game settings initialized");

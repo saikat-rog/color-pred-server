@@ -30,4 +30,11 @@ export const config = {
   security: {
     bcryptSaltRounds: parseInt(process.env.BCRYPT_SALT_ROUNDS || '12', 10),
   },
+
+  bondpay: {
+    merchantId: process.env.GATEWAY_BONDPAY_MERCHANT_ID || '',
+    apiUrl: process.env.GATEWAY_BONDPAY_API_URL || '',
+    apiKey: process.env.GATEWAY_BONDPAY_API_KEY || '',
+    callbackUrl: process.env.GATEWAY_BONDPAY_CALLBACK_URL || '',
+  },
 };

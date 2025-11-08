@@ -1,4 +1,4 @@
-import { PrismaClient, User, OTPSession, RefreshToken } from '@prisma/client'
+import { PrismaClient, User, OTPSession, RefreshToken, Transaction, TransactionType } from "@prisma/client";
 
 class DatabaseService {
   private prisma: PrismaClient;
@@ -11,9 +11,9 @@ class DatabaseService {
   async connect(): Promise<void> {
     try {
       await this.prisma.$connect();
-      console.log('✅ Connected to PostgreSQL database');
+      console.log("✅ Connected to PostgreSQL database");
     } catch (error) {
-      console.error('❌ Failed to connect to database:', error);
+      console.error("❌ Failed to connect to database:", error);
       throw error;
     }
   }
@@ -63,7 +63,10 @@ class DatabaseService {
     });
   }
 
-  async findUserByIdWithIncludes(id: number, includeOptions: any = {}): Promise<any> {
+  async findUserByIdWithIncludes(
+    id: number,
+    includeOptions: any = {}
+  ): Promise<any> {
     return await this.prisma.user.findUnique({
       where: {
         id,
@@ -113,19 +116,25 @@ class DatabaseService {
         isUsed: false,
       },
       orderBy: {
-        createdAt: 'desc',
+        createdAt: "desc",
       },
     });
   }
 
-  async updateOTPSession(id: number, data: Partial<OTPSession>): Promise<OTPSession> {
+  async updateOTPSession(
+    id: number,
+    data: Partial<OTPSession>
+  ): Promise<OTPSession> {
     return await this.prisma.oTPSession.update({
       where: { id },
       data,
     });
   }
 
-  async verifyOTP(phoneNumber: string, otp: string): Promise<{
+  async verifyOTP(
+    phoneNumber: string,
+    otp: string
+  ): Promise<{
     success: boolean;
     message: string;
     session?: OTPSession;
@@ -135,14 +144,14 @@ class DatabaseService {
     if (!session) {
       return {
         success: false,
-        message: 'No active OTP session found. Please request a new OTP.',
+        message: "No active OTP session found. Please request a new OTP.",
       };
     }
 
     if (session.isUsed) {
       return {
         success: false,
-        message: 'OTP has already been used.',
+        message: "OTP has already been used.",
       };
     }
 
@@ -150,7 +159,7 @@ class DatabaseService {
       await this.prisma.oTPSession.delete({ where: { id: session.id } });
       return {
         success: false,
-        message: 'OTP has expired. Please request a new one.',
+        message: "OTP has expired. Please request a new one.",
       };
     }
 
@@ -158,7 +167,7 @@ class DatabaseService {
       await this.prisma.oTPSession.delete({ where: { id: session.id } });
       return {
         success: false,
-        message: 'Maximum OTP attempts exceeded. Please request a new OTP.',
+        message: "Maximum OTP attempts exceeded. Please request a new OTP.",
       };
     }
 
@@ -170,7 +179,9 @@ class DatabaseService {
     if (session.otp !== otp) {
       return {
         success: false,
-        message: `Invalid OTP. ${3 - (session.attempts + 1)} attempts remaining.`,
+        message: `Invalid OTP. ${
+          3 - (session.attempts + 1)
+        } attempts remaining.`,
       };
     }
 
@@ -181,7 +192,7 @@ class DatabaseService {
 
     return {
       success: true,
-      message: 'OTP verified successfully',
+      message: "OTP verified successfully",
       session: updatedSession,
     };
   }
@@ -275,10 +286,7 @@ class DatabaseService {
       where: {
         userId,
       },
-      orderBy: [
-        { isDefault: 'desc' },
-        { createdAt: 'asc' }
-      ]
+      orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
     });
   }
 
@@ -315,7 +323,10 @@ class DatabaseService {
     });
   }
 
-  async findBankAccountByIdAndUser(bankAccountId: number, userId: number): Promise<any> {
+  async findBankAccountByIdAndUser(
+    bankAccountId: number,
+    userId: number
+  ): Promise<any> {
     return await this.prisma.bankAccount.findFirst({
       where: {
         id: bankAccountId,
@@ -324,13 +335,17 @@ class DatabaseService {
     });
   }
 
-  async updateBankAccount(bankAccountId: number, userId: number, data: {
-    accountNumber?: string;
-    accountName?: string;
-    ifscCode?: string;
-    upiId?: string;
-    isDefault?: boolean;
-  }): Promise<any> {
+  async updateBankAccount(
+    bankAccountId: number,
+    userId: number,
+    data: {
+      accountNumber?: string;
+      accountName?: string;
+      ifscCode?: string;
+      upiId?: string;
+      isDefault?: boolean;
+    }
+  ): Promise<any> {
     // If this is being set as default, unset other defaults first
     if (data.isDefault) {
       await this.prisma.bankAccount.updateMany({
@@ -372,7 +387,7 @@ class DatabaseService {
         userId: data.userId,
         bankAccountId: data.bankAccountId,
         amount: data.amount,
-        status: 'pending',
+        status: "pending",
       },
       include: {
         bankAccount: {
@@ -403,12 +418,15 @@ class DatabaseService {
         },
       },
       orderBy: {
-        requestedAt: 'desc',
+        requestedAt: "desc",
       },
     });
   }
 
-  async findWithdrawalRequestByIdAndUser(requestId: number, userId: number): Promise<any> {
+  async findWithdrawalRequestByIdAndUser(
+    requestId: number,
+    userId: number
+  ): Promise<any> {
     return await this.prisma.withdrawalRequest.findFirst({
       where: {
         id: requestId,
@@ -444,41 +462,51 @@ class DatabaseService {
         id: requestId,
       },
       data: {
-        status: 'cancelled',
+        status: "cancelled",
         processedAt: new Date(),
       },
     });
   }
 
   // Transaction operations
-  async createTransaction(data: {
+  async createTransactionForWalletRecharge(data: {
     userId: number;
     type: string;
     amount: number;
-    status?: string;
     description?: string;
     referenceId?: string;
-    balanceBefore: number;
-    balanceAfter: number;
   }): Promise<any> {
+
+    // Fetch current user balance to determine balanceBefore
+    const user = await this.prisma.user.findUnique({
+      where: { id: data.userId },
+    });
+    if (!user) throw new Error("User not found");
+
+    const balanceBefore = user.balance;
+
     return await this.prisma.transaction.create({
       data: {
         userId: data.userId,
-        type: data.type as any,
+        type: data.type as TransactionType,
         amount: data.amount,
-        status: (data.status as any) || 'completed',
+        status: "pending",
         description: data.description || null,
         referenceId: data.referenceId || null,
-        balanceBefore: data.balanceBefore,
-        balanceAfter: data.balanceAfter,
+        balanceBefore,
+        balanceAfter: balanceBefore,
       },
     });
   }
 
-  async getUserTransactions(userId: number, limit: number = 50, offset: number = 0): Promise<any[]> {
+  async getUserTransactions(
+    userId: number,
+    limit: number = 50,
+    offset: number = 0
+  ): Promise<any[]> {
     return await this.prisma.transaction.findMany({
       where: { userId },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
       take: limit,
       skip: offset,
     });
@@ -491,7 +519,11 @@ class DatabaseService {
     });
   }
 
-  async updateTransactionStatus(transactionId: number, status: string, description?: string): Promise<any> {
+  async updateTransactionStatus(
+    transactionId: number,
+    status: string,
+    description?: string
+  ): Promise<any> {
     return await this.prisma.transaction.update({
       where: { id: transactionId },
       data: {
@@ -504,20 +536,20 @@ class DatabaseService {
 
   // Updated balance update method with transaction recording
   async updateUserBalanceWithTransaction(
-    userId: number, 
-    amount: number, 
-    type: string, 
+    userId: number,
+    amount: number,
+    type: string,
     description?: string,
     referenceId?: string
   ): Promise<{ user: any; transaction: any }> {
     return await this.prisma.$transaction(async (prisma) => {
       // Get current user balance
       const currentUser = await prisma.user.findUnique({
-        where: { id: userId }
+        where: { id: userId },
       });
 
       if (!currentUser) {
-        throw new Error('User not found');
+        throw new Error("User not found");
       }
 
       const balanceBefore = currentUser.balance;
@@ -526,7 +558,7 @@ class DatabaseService {
       // Update user balance
       const updatedUser = await prisma.user.update({
         where: { id: userId },
-        data: { balance: balanceAfter }
+        data: { balance: balanceAfter },
       });
 
       // Create transaction record
@@ -535,12 +567,12 @@ class DatabaseService {
           userId,
           type: type as any,
           amount: Math.abs(amount), // Store as positive value
-          status: 'completed',
+          status: "completed",
           description: description || null,
           referenceId: referenceId || null,
           balanceBefore,
-          balanceAfter
-        }
+          balanceAfter,
+        },
       });
 
       return { user: updatedUser, transaction };
@@ -549,7 +581,11 @@ class DatabaseService {
 
   // Admin helpers (raw SQL where needed)
   async banUser(userId: number, banned: boolean): Promise<void> {
-    await this.prisma.$executeRawUnsafe('UPDATE users SET is_banned = $1 WHERE id = $2', !!banned, userId);
+    await this.prisma.$executeRawUnsafe(
+      "UPDATE users SET is_banned = $1 WHERE id = $2",
+      !!banned,
+      userId
+    );
     await this.prisma.refreshToken.deleteMany({ where: { userId } });
   }
 }
@@ -562,12 +598,14 @@ setInterval(async () => {
   try {
     const expiredOTP = await databaseService.cleanupExpiredOTPSessions();
     const expiredTokens = await databaseService.deleteExpiredRefreshTokens();
-    
+
     if (expiredOTP > 0 || expiredTokens > 0) {
-      console.log(`🧹 Cleanup: Removed ${expiredOTP} expired OTP sessions and ${expiredTokens} expired refresh tokens`);
+      console.log(
+        `🧹 Cleanup: Removed ${expiredOTP} expired OTP sessions and ${expiredTokens} expired refresh tokens`
+      );
     }
   } catch (error) {
-    console.error('Error during cleanup:', error);
+    console.error("Error during cleanup:", error);
   }
 }, 5 * 60 * 1000); // Run every 5 minutes
 

@@ -184,6 +184,8 @@ model GameSettings {
   referralCommissionPercentage3  Float    @default(0.25) @map("referral_commission_l3") // Level 3: Referral's referral's referral (0.25%)
   referralSignupBonusInRs   Float    @default(1.0) @map("referral_signup_bonus") // Bonus for referrer when referral signs up and recharges
   minRechargeForBonus   Float    @default(500.0) @map("min_recharge_for_bonus") // Minimum recharge amount to trigger referral bonus
+  minRechargeAmount    Float    @default(200.0) @map("min_recharge_amount")
+  maxRechargeAmount    Float    @default(50000.00) @map("max_recharge_amount")
   updatedAt             DateTime @updatedAt @map("updated_at")
 
   @@map("game_settings")

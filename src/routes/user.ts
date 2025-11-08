@@ -120,6 +120,6 @@ router.get('/transactions', userController.getTransactions.bind(userController))
  * @headers Authorization: Bearer <token>
  * @body    { amount: number, transactionId?: string, description?: string }
  */
-router.post('/recharge', userController.addRecharge.bind(userController));
+router.post('/recharge', userController.initiateRecharge.bind(userController));
 
 export { router as userRoutes };

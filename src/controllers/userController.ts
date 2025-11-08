@@ -1,5 +1,10 @@
-import { Request, Response } from 'express';
-import { databaseService } from '../services/databaseService';
+import { Request, Response } from "express";
+import { databaseService } from "../services/databaseService";
+import { PaymentService } from "../services/paymentService";
+import { config } from "../config";
+import crypto from "crypto";
+import axios from "axios";
+import { validate } from "uuid";
 
 class UserController {
   /**
@@ -11,18 +16,18 @@ class UserController {
       if (!userId) {
         res.status(401).json({
           success: false,
-          message: 'User not authenticated'
+          message: "User not authenticated",
         });
         return;
       }
 
       const { phoneNumber, ...updateData } = req.body;
-      
+
       // Don't allow updating phone number through this endpoint
       if (phoneNumber) {
         res.status(400).json({
           success: false,
-          message: 'Phone number cannot be updated through this endpoint'
+          message: "Phone number cannot be updated through this endpoint",
         });
         return;
       }
@@ -32,15 +37,14 @@ class UserController {
 
       res.status(200).json({
         success: true,
-        message: 'Profile updated successfully',
-        data: sanitizedUser
+        message: "Profile updated successfully",
+        data: sanitizedUser,
       });
-
     } catch (error) {
-      console.error('Error in updateProfile:', error);
+      console.error("Error in updateProfile:", error);
       res.status(500).json({
         success: false,
-        message: 'Internal server error'
+        message: "Internal server error",
       });
     }
   }
@@ -56,7 +60,7 @@ class UserController {
       if (!userId) {
         res.status(401).json({
           success: false,
-          message: 'User not authenticated'
+          message: "User not authenticated",
         });
         return;
       }
@@ -65,15 +69,14 @@ class UserController {
 
       res.status(200).json({
         success: true,
-        message: 'Bank accounts retrieved successfully',
-        data: bankAccounts
+        message: "Bank accounts retrieved successfully",
+        data: bankAccounts,
       });
-
     } catch (error) {
-      console.error('Error in getBankAccounts:', error);
+      console.error("Error in getBankAccounts:", error);
       res.status(500).json({
         success: false,
-        message: 'Internal server error'
+        message: "Internal server error",
       });
     }
   }
@@ -87,18 +90,19 @@ class UserController {
       if (!userId) {
         res.status(401).json({
           success: false,
-          message: 'User not authenticated'
+          message: "User not authenticated",
         });
         return;
       }
 
-      const { accountNumber, accountName, ifscCode, upiId, isDefault } = req.body;
+      const { accountNumber, accountName, ifscCode, upiId, isDefault } =
+        req.body;
 
       // Validation
       if (!accountNumber || !accountName || !ifscCode) {
         res.status(400).json({
           success: false,
-          message: 'Account number, account name, and IFSC code are required'
+          message: "Account number, account name, and IFSC code are required",
         });
         return;
       }
@@ -107,7 +111,7 @@ class UserController {
       if (!/^\d{9,18}$/.test(accountNumber)) {
         res.status(400).json({
           success: false,
-          message: 'Invalid account number format'
+          message: "Invalid account number format",
         });
         return;
       }
@@ -116,7 +120,7 @@ class UserController {
       if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifscCode)) {
         res.status(400).json({
           success: false,
-          message: 'Invalid IFSC code format'
+          message: "Invalid IFSC code format",
         });
         return;
       }
@@ -127,20 +131,19 @@ class UserController {
         accountName,
         ifscCode,
         upiId,
-        isDefault: isDefault || false
+        isDefault: isDefault || false,
       });
 
       res.status(201).json({
         success: true,
-        message: 'Bank account added successfully',
-        data: bankAccount
+        message: "Bank account added successfully",
+        data: bankAccount,
       });
-
     } catch (error) {
-      console.error('Error in addBankAccount:', error);
+      console.error("Error in addBankAccount:", error);
       res.status(500).json({
         success: false,
-        message: 'Internal server error'
+        message: "Internal server error",
       });
     }
   }
@@ -151,12 +154,12 @@ class UserController {
   async updateBankAccount(req: Request, res: Response): Promise<void> {
     try {
       const userId = (req as any).user?.userId;
-      const bankAccountId = parseInt(req.params.id || '0');
+      const bankAccountId = parseInt(req.params.id || "0");
 
       if (!userId) {
         res.status(401).json({
           success: false,
-          message: 'User not authenticated'
+          message: "User not authenticated",
         });
         return;
       }
@@ -164,22 +167,26 @@ class UserController {
       if (isNaN(bankAccountId)) {
         res.status(400).json({
           success: false,
-          message: 'Invalid bank account ID'
+          message: "Invalid bank account ID",
         });
         return;
       }
 
       // Check if bank account exists and belongs to user
-      const existingAccount = await databaseService.findBankAccountByIdAndUser(bankAccountId, userId);
+      const existingAccount = await databaseService.findBankAccountByIdAndUser(
+        bankAccountId,
+        userId
+      );
       if (!existingAccount) {
         res.status(404).json({
           success: false,
-          message: 'Bank account not found or does not belong to you'
+          message: "Bank account not found or does not belong to you",
         });
         return;
       }
 
-      const { accountNumber, accountName, ifscCode, upiId, isDefault } = req.body;
+      const { accountNumber, accountName, ifscCode, upiId, isDefault } =
+        req.body;
       const updateData: any = {};
 
       // Build update object with only provided fields
@@ -187,7 +194,7 @@ class UserController {
         if (!/^\d{9,18}$/.test(accountNumber)) {
           res.status(400).json({
             success: false,
-            message: 'Invalid account number format'
+            message: "Invalid account number format",
           });
           return;
         }
@@ -195,12 +202,12 @@ class UserController {
       }
 
       if (accountName !== undefined) updateData.accountName = accountName;
-      
+
       if (ifscCode !== undefined) {
         if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifscCode)) {
           res.status(400).json({
             success: false,
-            message: 'Invalid IFSC code format'
+            message: "Invalid IFSC code format",
           });
           return;
         }
@@ -210,19 +217,22 @@ class UserController {
       if (upiId !== undefined) updateData.upiId = upiId;
       if (isDefault !== undefined) updateData.isDefault = isDefault;
 
-      const updatedAccount = await databaseService.updateBankAccount(bankAccountId, userId, updateData);
+      const updatedAccount = await databaseService.updateBankAccount(
+        bankAccountId,
+        userId,
+        updateData
+      );
 
       res.status(200).json({
         success: true,
-        message: 'Bank account updated successfully',
-        data: updatedAccount
+        message: "Bank account updated successfully",
+        data: updatedAccount,
       });
-
     } catch (error) {
-      console.error('Error in updateBankAccount:', error);
+      console.error("Error in updateBankAccount:", error);
       res.status(500).json({
         success: false,
-        message: 'Internal server error'
+        message: "Internal server error",
       });
     }
   }
@@ -233,12 +243,12 @@ class UserController {
   async deleteBankAccount(req: Request, res: Response): Promise<void> {
     try {
       const userId = (req as any).user?.userId;
-      const bankAccountId = parseInt(req.params.id || '0');
+      const bankAccountId = parseInt(req.params.id || "0");
 
       if (!userId) {
         res.status(401).json({
           success: false,
-          message: 'User not authenticated'
+          message: "User not authenticated",
         });
         return;
       }
@@ -246,17 +256,20 @@ class UserController {
       if (isNaN(bankAccountId)) {
         res.status(400).json({
           success: false,
-          message: 'Invalid bank account ID'
+          message: "Invalid bank account ID",
         });
         return;
       }
 
       // Check if bank account exists and belongs to user
-      const bankAccount = await databaseService.findBankAccountByIdAndUser(bankAccountId, userId);
+      const bankAccount = await databaseService.findBankAccountByIdAndUser(
+        bankAccountId,
+        userId
+      );
       if (!bankAccount) {
         res.status(404).json({
           success: false,
-          message: 'Bank account not found or does not belong to you'
+          message: "Bank account not found or does not belong to you",
         });
         return;
       }
@@ -265,14 +278,13 @@ class UserController {
 
       res.status(200).json({
         success: true,
-        message: 'Bank account deleted successfully'
+        message: "Bank account deleted successfully",
       });
-
     } catch (error) {
-      console.error('Error in deleteBankAccount:', error);
+      console.error("Error in deleteBankAccount:", error);
       res.status(500).json({
         success: false,
-        message: 'Internal server error'
+        message: "Internal server error",
       });
     }
   }
@@ -288,7 +300,7 @@ class UserController {
       if (!userId) {
         res.status(401).json({
           success: false,
-          message: 'User not authenticated'
+          message: "User not authenticated",
         });
         return;
       }
@@ -299,7 +311,7 @@ class UserController {
       if (!bankAccountId || !amount) {
         res.status(400).json({
           success: false,
-          message: 'Bank account ID and amount are required'
+          message: "Bank account ID and amount are required",
         });
         return;
       }
@@ -307,7 +319,7 @@ class UserController {
       if (amount <= 0) {
         res.status(400).json({
           success: false,
-          message: 'Amount must be greater than 0'
+          message: "Amount must be greater than 0",
         });
         return;
       }
@@ -316,7 +328,7 @@ class UserController {
       if (amount < 100) {
         res.status(400).json({
           success: false,
-          message: 'Minimum withdrawal amount is ₹100'
+          message: "Minimum withdrawal amount is ₹100",
         });
         return;
       }
@@ -326,7 +338,7 @@ class UserController {
       if (!user) {
         res.status(404).json({
           success: false,
-          message: 'User not found'
+          message: "User not found",
         });
         return;
       }
@@ -335,17 +347,20 @@ class UserController {
       if (user.balance < amount) {
         res.status(400).json({
           success: false,
-          message: 'Insufficient balance'
+          message: "Insufficient balance",
         });
         return;
       }
 
       // Verify bank account belongs to user
-      const bankAccount = await databaseService.findBankAccountByIdAndUser(bankAccountId, userId);
+      const bankAccount = await databaseService.findBankAccountByIdAndUser(
+        bankAccountId,
+        userId
+      );
       if (!bankAccount) {
         res.status(404).json({
           success: false,
-          message: 'Bank account not found or does not belong to you'
+          message: "Bank account not found or does not belong to you",
         });
         return;
       }
@@ -354,33 +369,33 @@ class UserController {
       const withdrawalRequest = await databaseService.createWithdrawalRequest({
         userId,
         bankAccountId,
-        amount
+        amount,
       });
 
       // Deduct balance and create transaction record
-      const { user: updatedUser, transaction } = await databaseService.updateUserBalanceWithTransaction(
-        userId,
-        -amount, // Negative amount for withdrawal
-        'withdrawal',
-        `Withdrawal request to ${bankAccount.accountName} (${bankAccount.accountNumber})`,
-        withdrawalRequest.id.toString()
-      );
+      const { user: updatedUser, transaction } =
+        await databaseService.updateUserBalanceWithTransaction(
+          userId,
+          -amount, // Negative amount for withdrawal
+          "withdrawal",
+          `Withdrawal request to ${bankAccount.accountName} (${bankAccount.accountNumber})`,
+          withdrawalRequest.id.toString()
+        );
 
       res.status(201).json({
         success: true,
-        message: 'Withdrawal request submitted successfully',
+        message: "Withdrawal request submitted successfully",
         data: {
           withdrawalRequest,
           transaction,
-          newBalance: updatedUser.balance
-        }
+          newBalance: updatedUser.balance,
+        },
       });
-
     } catch (error) {
-      console.error('Error in submitWithdrawalRequest:', error);
+      console.error("Error in submitWithdrawalRequest:", error);
       res.status(500).json({
         success: false,
-        message: 'Internal server error'
+        message: "Internal server error",
       });
     }
   }
@@ -394,24 +409,24 @@ class UserController {
       if (!userId) {
         res.status(401).json({
           success: false,
-          message: 'User not authenticated'
+          message: "User not authenticated",
         });
         return;
       }
 
-      const withdrawalRequests = await databaseService.getUserWithdrawalRequests(userId);
+      const withdrawalRequests =
+        await databaseService.getUserWithdrawalRequests(userId);
 
       res.status(200).json({
         success: true,
-        message: 'Withdrawal requests retrieved successfully',
-        data: withdrawalRequests
+        message: "Withdrawal requests retrieved successfully",
+        data: withdrawalRequests,
       });
-
     } catch (error) {
-      console.error('Error in getWithdrawalRequests:', error);
+      console.error("Error in getWithdrawalRequests:", error);
       res.status(500).json({
         success: false,
-        message: 'Internal server error'
+        message: "Internal server error",
       });
     }
   }
@@ -422,12 +437,12 @@ class UserController {
   async cancelWithdrawalRequest(req: Request, res: Response): Promise<void> {
     try {
       const userId = (req as any).user?.userId;
-      const requestId = parseInt(req.params.id || '0');
+      const requestId = parseInt(req.params.id || "0");
 
       if (!userId) {
         res.status(401).json({
           success: false,
-          message: 'User not authenticated'
+          message: "User not authenticated",
         });
         return;
       }
@@ -435,26 +450,30 @@ class UserController {
       if (isNaN(requestId)) {
         res.status(400).json({
           success: false,
-          message: 'Invalid withdrawal request ID'
+          message: "Invalid withdrawal request ID",
         });
         return;
       }
 
       // Find withdrawal request
-      const withdrawalRequest = await databaseService.findWithdrawalRequestByIdAndUser(requestId, userId);
+      const withdrawalRequest =
+        await databaseService.findWithdrawalRequestByIdAndUser(
+          requestId,
+          userId
+        );
       if (!withdrawalRequest) {
         res.status(404).json({
           success: false,
-          message: 'Withdrawal request not found or does not belong to you'
+          message: "Withdrawal request not found or does not belong to you",
         });
         return;
       }
 
       // Check if request can be cancelled (only pending requests)
-      if (withdrawalRequest.status !== 'pending') {
+      if (withdrawalRequest.status !== "pending") {
         res.status(400).json({
           success: false,
-          message: `Cannot cancel withdrawal request with status: ${withdrawalRequest.status}`
+          message: `Cannot cancel withdrawal request with status: ${withdrawalRequest.status}`,
         });
         return;
       }
@@ -463,29 +482,29 @@ class UserController {
       await databaseService.cancelWithdrawalRequest(requestId);
 
       // Refund amount and create transaction record
-      const { user: updatedUser, transaction } = await databaseService.updateUserBalanceWithTransaction(
-        userId,
-        withdrawalRequest.amount, // Positive amount for refund
-        'refund',
-        `Refund for cancelled withdrawal request to ${withdrawalRequest.bankAccount.accountName}`,
-        requestId.toString()
-      );
+      const { user: updatedUser, transaction } =
+        await databaseService.updateUserBalanceWithTransaction(
+          userId,
+          withdrawalRequest.amount, // Positive amount for refund
+          "refund",
+          `Refund for cancelled withdrawal request to ${withdrawalRequest.bankAccount.accountName}`,
+          requestId.toString()
+        );
 
       res.status(200).json({
         success: true,
-        message: 'Withdrawal request cancelled successfully',
+        message: "Withdrawal request cancelled successfully",
         data: {
           refundedAmount: withdrawalRequest.amount,
           transaction,
-          newBalance: updatedUser.balance
-        }
+          newBalance: updatedUser.balance,
+        },
       });
-
     } catch (error) {
-      console.error('Error in cancelWithdrawalRequest:', error);
+      console.error("Error in cancelWithdrawalRequest:", error);
       res.status(500).json({
         success: false,
-        message: 'Internal server error'
+        message: "Internal server error",
       });
     }
   }
@@ -504,24 +523,27 @@ class UserController {
       if (!userId) {
         res.status(401).json({
           success: false,
-          message: 'User not authenticated'
+          message: "User not authenticated",
         });
         return;
       }
 
-      const transactions = await databaseService.getUserTransactions(userId, limit, offset);
+      const transactions = await databaseService.getUserTransactions(
+        userId,
+        limit,
+        offset
+      );
 
       res.status(200).json({
         success: true,
-        message: 'Transactions retrieved successfully',
-        data: transactions
+        message: "Transactions retrieved successfully",
+        data: transactions,
       });
-
     } catch (error) {
-      console.error('Error in getTransactions:', error);
+      console.error("Error in getTransactions:", error);
       res.status(500).json({
         success: false,
-        message: 'Internal server error'
+        message: "Internal server error",
       });
     }
   }
@@ -529,69 +551,87 @@ class UserController {
   /**
    * Add recharge to user account
    */
-  async addRecharge(req: Request, res: Response): Promise<void> {
+  async initiateRecharge(req: Request, res: Response): Promise<void> {
+    const paymentService = new PaymentService();
+
     try {
       const userId = (req as any).user?.userId;
-      const { amount, transactionId, description } = req.body;
+      const { amount, description, paymentMethod } = req.body;
 
       if (!userId) {
         res.status(401).json({
           success: false,
-          message: 'User not authenticated'
+          message: "User not authenticated",
         });
         return;
       }
 
-      if (!amount || amount <= 0) {
+      // Load game service and settings to get minimum recharge amount
+      const gameServiceModule = await import("../services/gameService");
+      const gameService = gameServiceModule.gameService;
+      const settings = await gameService.getGameSettings();
+      const minRecharge = (settings as any)?.minRechargeAmount ?? 200;
+      const maxRecharge = (settings as any)?.maxRechargeAmount ?? 50000;
+
+      // Validate the recharge amount
+      if (!amount || amount < minRecharge || amount > maxRecharge) {
         res.status(400).json({
           success: false,
-          message: 'Valid amount is required'
+          message: `Minimum recharge amount is ₹${minRecharge} and maximum is ₹${maxRecharge}`,
         });
         return;
       }
 
-      if (amount < 100) {
-        res.status(400).json({
-          success: false,
-          message: 'Minimum recharge amount is ₹100'
-        });
+      // Route to correct payment method handler
+      let result: any;
+      switch (paymentMethod) {
+        
+        case "bondpay":
+          result = await paymentService.initiatePaymentWithBondPay(
+            userId,
+            amount,
+            description
+          );
+          break;
+
+        case "onepay":
+          result = {
+            success: false,
+            statusCode: 501,
+            message: "OnePay integration is not yet implemented",
+          }
+          break;
+
+        // Handle default case where payment method is not recognized
+        default:
+          result = await paymentService.initiatePaymentWithBondPay(
+            userId,
+            amount,
+            description
+          );
+          break;
+      }
+
+      // Capture the result and respond accordingly
+      if (!result || result.success === false) {
+        const code = result?.statusCode || 502;
+        res.status(code).json(result);
         return;
       }
 
-      // Add recharge and create transaction record
-      const { user: updatedUser, transaction } = await databaseService.updateUserBalanceWithTransaction(
-        userId,
-        amount, // Positive amount for recharge
-        'recharge',
-        description || 'Manual recharge',
-        transactionId
-      );
-
-      // Process referral bonus if applicable
-      // This needs to be imported from gameService
-      const { gameService } = await import('../services/gameService');
-      await gameService.processReferralBonus(userId, amount);
-
-      res.status(200).json({
-        success: true,
-        message: 'Recharge added successfully',
-        data: {
-          rechargeAmount: amount,
-          transaction,
-          newBalance: updatedUser.balance
-        }
-      });
+      res.status(200).json(result);
+      return;
 
     } catch (error) {
-      console.error('Error in addRecharge:', error);
+      console.error("Error in initiateRecharge:", error);
       res.status(500).json({
         success: false,
-        message: 'Internal server error'
+        message: "Internal server error",
       });
     }
   }
 
-  private sanitizeUser(user: any): Omit<any, 'password'> {
+  private sanitizeUser(user: any): Omit<any, "password"> {
     const { password, ...sanitizedUser } = user;
     return sanitizedUser;
   }
