@@ -17,7 +17,7 @@ const app: Express = express();
 app.use(helmet());
 app.use(cors({
   origin: config.nodeEnv === 'production' 
-    ? ['https://yourdomain.com'] // Replace with your frontend domain in production
+    ? [config.frontend.baseUrl]
     : true, // Allow all origins in development
   credentials: true
 }));
