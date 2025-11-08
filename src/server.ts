@@ -110,8 +110,8 @@ async function startServer() {
     
     // Initialize game service
     await gameService.initialize();
-    
-    app.listen(PORT, () => {
+
+    app.listen(PORT, '0.0.0.0', () => {
       console.log(`Color game Server running on port ${PORT}`);
       console.log(`Database connected!`);
       console.log(`🌍 Environment: ${config.nodeEnv}`);
