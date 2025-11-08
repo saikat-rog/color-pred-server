@@ -111,10 +111,20 @@ async function startServer() {
     // Initialize game service
     await gameService.initialize();
 
-    app.listen(PORT, '0.0.0.0', () => {
-      console.log(`Color game Server running on port ${PORT}`);
-      console.log(`Database connected!`);
+    const HOST = process.env.HOST || '0.0.0.0';
+    console.log(`Attempting to bind server on ${HOST}:${PORT} ...`);
+
+    const server = app.listen(PORT, HOST);
+
+    server.on('listening', () => {
+      console.log(`Color game Server running on port ${PORT} (bound to ${HOST})`);
       console.log(`🌍 Environment: ${config.nodeEnv}`);
+    });
+
+    server.on('error', (err: any) => {
+      console.error('Server failed to bind:', err);
+      // Exit so the platform can restart the process if desired
+      process.exit(1);
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error);
