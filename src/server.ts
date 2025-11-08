@@ -17,7 +17,7 @@ const app: Express = express();
 app.use(helmet());
 app.use(cors({
   origin: config.nodeEnv === 'production' 
-    ? [config.frontend.baseUrl]
+    ? ['https://yourdomain.com'] // Replace with your frontend domain in production
     : true, // Allow all origins in development
   credentials: true
 }));
@@ -33,45 +33,44 @@ app.get('/', (req, res) => {
     status: 'active',
     version: '1.0.0',
     environment: config.nodeEnv,
-    // endpoints: {
-    //   signup: 'POST /api/auth/signup/initiate',
-    //   completeSignup: 'POST /api/auth/signup/complete',
-    //   login: 'POST /api/auth/login',
-    //   refreshToken: 'POST /api/auth/refresh-token',
-    //   logout: 'POST /api/auth/logout',
-    //   passwordResetInitiate: 'POST /api/auth/password-reset/initiate',
-    //   passwordResetComplete: 'POST /api/auth/password-reset/complete',
-    //   profile: 'GET /api/auth/profile',
-    //   verifyToken: 'GET /api/auth/verify-token',
-    //   updateProfile: 'PUT /api/user/profile',
-    //   getBankAccounts: 'GET /api/user/bank-accounts',
-    //   addBankAccount: 'POST /api/user/bank-accounts',
-    //   updateBankAccount: 'PUT /api/user/bank-accounts/:id',
-    //   deleteBankAccount: 'DELETE /api/user/bank-accounts/:id',
-    //   submitWithdrawal: 'POST /api/user/withdrawal-requests',
-    //   getWithdrawals: 'GET /api/user/withdrawal-requests',
-    //   cancelWithdrawal: 'DELETE /api/user/withdrawal-requests/:id',
-    //   getTransactions: 'GET /api/user/transactions',
-    //   getCurrentPeriod: 'GET /api/game/period/current',
-    //   placeBet: 'POST /api/game/bet',
-    //   getUserBets: 'GET /api/game/bet/current',
-    //   getBetHistory: 'GET /api/game/bet/history',
-    //   getPeriodHistory: 'GET /api/game/period/history',
-    //   getGameSettings: 'GET /api/game/settings',
-    //   updateGameSettings: 'PUT /api/game/settings',
-    //   // callbackURL: 'POST /api/payment/callback',
-    //   addRecharge: 'POST /api/payment/recharge',
-    //   // Admin endpoints
-    //   adminLogin: 'POST /api/admin/login',
-    //   adminUsers: 'GET /api/admin/users',
-    //   adminUserDetail: 'GET /api/admin/user/:id',
-    //   adminBanUser: 'PUT /api/admin/user/:id/ban',
-    //   adminUserSummary: 'GET /api/admin/user/:id/summary',
-    //   adminDashboard: 'GET /api/admin/dashboard',
-    //   adminPeriods: 'GET /api/admin/periods',
-    //   adminGetSettings: 'GET /api/admin/settings',
-    //   adminUpdateSettings: 'PUT /api/admin/settings'
-    // }
+    endpoints: {
+      signup: 'POST /api/auth/signup/initiate',
+      completeSignup: 'POST /api/auth/signup/complete',
+      login: 'POST /api/auth/login',
+      refreshToken: 'POST /api/auth/refresh-token',
+      logout: 'POST /api/auth/logout',
+      passwordResetInitiate: 'POST /api/auth/password-reset/initiate',
+      passwordResetComplete: 'POST /api/auth/password-reset/complete',
+      profile: 'GET /api/auth/profile',
+      verifyToken: 'GET /api/auth/verify-token',
+      updateProfile: 'PUT /api/user/profile',
+      getBankAccounts: 'GET /api/user/bank-accounts',
+      addBankAccount: 'POST /api/user/bank-accounts',
+      updateBankAccount: 'PUT /api/user/bank-accounts/:id',
+      deleteBankAccount: 'DELETE /api/user/bank-accounts/:id',
+      submitWithdrawal: 'POST /api/user/withdrawal-requests',
+      getWithdrawals: 'GET /api/user/withdrawal-requests',
+      cancelWithdrawal: 'DELETE /api/user/withdrawal-requests/:id',
+      getTransactions: 'GET /api/user/transactions',
+      addRecharge: 'POST /api/user/recharge',
+      getCurrentPeriod: 'GET /api/game/period/current',
+      placeBet: 'POST /api/game/bet',
+      getUserBets: 'GET /api/game/bet/current',
+      getBetHistory: 'GET /api/game/bet/history',
+      getPeriodHistory: 'GET /api/game/period/history',
+      getGameSettings: 'GET /api/game/settings',
+      updateGameSettings: 'PUT /api/game/settings',
+      // Admin endpoints
+      adminLogin: 'POST /api/admin/login',
+      adminUsers: 'GET /api/admin/users',
+      adminUserDetail: 'GET /api/admin/user/:id',
+      adminBanUser: 'PUT /api/admin/user/:id/ban',
+      adminUserSummary: 'GET /api/admin/user/:id/summary',
+      adminDashboard: 'GET /api/admin/dashboard',
+      adminPeriods: 'GET /api/admin/periods',
+      adminGetSettings: 'GET /api/admin/settings',
+      adminUpdateSettings: 'PUT /api/admin/settings'
+    }
   });
 });
 
@@ -86,7 +85,7 @@ app.use('/api/payment', paymentRoutes);
 app.use((req, res) => {
   res.status(404).json({
     success: false,
-    message: 'Sorry, the requested resource was not found please try again.',
+    message: 'Endpoint not found'
   });
 });
 
@@ -110,21 +109,11 @@ async function startServer() {
     
     // Initialize game service
     await gameService.initialize();
-
-    const HOST = process.env.HOST || '0.0.0.0';
-    console.log(`Attempting to bind server on ${HOST}:${PORT} ...`);
-
-    const server = app.listen(PORT, HOST);
-
-    server.on('listening', () => {
-      console.log(`Color game Server running on port ${PORT} (bound to ${HOST})`);
+    
+    app.listen(PORT, () => {
+      console.log(`Color game Server running on port ${PORT}`);
+      console.log(`Database connected!`);
       console.log(`🌍 Environment: ${config.nodeEnv}`);
-    });
-
-    server.on('error', (err: any) => {
-      console.error('Server failed to bind:', err);
-      // Exit so the platform can restart the process if desired
-      process.exit(1);
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error);
