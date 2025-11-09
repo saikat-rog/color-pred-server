@@ -13,6 +13,8 @@ import { paymentRoutes } from './routes/payment';
 // Initialize Express app
 const app: Express = express();
 
+app.set('trust proxy', 1); // Trust first proxy
+
 // Security middleware
 app.use(helmet());
 app.use(cors({
