@@ -1,16 +1,122 @@
-import { Request, Response } from "express";
+import { Request, response, Response } from "express";
 import { PrismaClient } from "@prisma/client";
 import { PaymentService } from "../services/paymentService";
+import { databaseService } from "../services/databaseService";
 import { gameService } from "../services/gameService";
 import { config } from "../config";
 import crypto from "crypto";
+import { log } from "console";
 
 const prisma = new PrismaClient();
 
 export class PaymentController {
-  
   async paymentCallback(req: Request, res: Response) {
     const payload = req.body || {};
+
+    // Persist full request (headers, query, body) and capture log id so we can save response later
+    let requestLogId: number | null = null;
+    try {
+      const ipValEarly =
+        (req.ip as string) ||
+        (req.headers["x-forwarded-for"] as string) ||
+        undefined;
+      const logDataEarly: any = {
+        path: req.path,
+        method: req.method,
+        headers: req.headers as any,
+        query: req.query as any,
+        body: payload as any,
+      };
+      if (ipValEarly) logDataEarly.ip = ipValEarly;
+
+      const createdLog = await databaseService
+        .createRequestLogOfCallbackUrl(logDataEarly)
+        .catch((err) => {
+          console.error("Failed to persist incoming request log (early):", err);
+          return null;
+        });
+      requestLogId = createdLog?.id ?? null;
+    } catch (e) {
+      console.error("Failed to create initial request log:", e);
+    }
+
+    // Attach response interceptors so we can persist the outgoing response later
+    try {
+      const originalJson = (res as any).json?.bind(res);
+      const originalSend = (res as any).send?.bind(res);
+      const originalEnd = (res as any).end?.bind(res);
+
+      const persistResponse = (body: any) => {
+        try {
+          if (requestLogId) {
+            databaseService
+              .updateRequestLogResponseOfCallbackUrl(requestLogId, body)
+              .catch((err) => {
+                console.error(
+                  "Failed to update request log with response:",
+                  err
+                );
+              });
+          }
+        } catch (err) {
+          console.error("Error persisting response to request log:", err);
+        }
+      };
+
+      if (originalJson) {
+        (res as any).json = function (body: any) {
+          persistResponse(body);
+          return originalJson(body);
+        };
+      }
+
+      if (originalSend) {
+        (res as any).send = function (body: any) {
+          let toStore: any = body;
+          try {
+            if (typeof body === "string") {
+              try {
+                toStore = JSON.parse(body);
+              } catch (_) {
+                toStore = { text: body };
+              }
+            }
+            if (Buffer.isBuffer(body)) {
+              toStore = { buffer: body.toString("utf8") };
+            }
+          } catch (_) {
+            toStore = { raw: String(body) };
+          }
+          persistResponse(toStore);
+          return originalSend(body);
+        };
+      }
+
+      if (originalEnd) {
+        (res as any).end = function (chunk: any, encoding?: any) {
+          if (chunk) {
+            let chunkToStore: any = chunk;
+            try {
+              if (Buffer.isBuffer(chunk))
+                chunkToStore = chunk.toString(encoding || "utf8");
+              if (typeof chunkToStore === "string") {
+                try {
+                  chunkToStore = JSON.parse(chunkToStore);
+                } catch (_) {
+                  chunkToStore = { text: chunkToStore };
+                }
+              }
+            } catch (_) {
+              chunkToStore = { raw: String(chunk) };
+            }
+            persistResponse(chunkToStore);
+          }
+          return originalEnd(chunk, encoding);
+        };
+      }
+    } catch (err) {
+      console.error("Failed to attach response interceptors:", err);
+    }
 
     const { merchantOrder, status, amount } = payload;
 
@@ -38,6 +144,19 @@ export class PaymentController {
 
     const signature = crypto.createHash("md5").update(str).digest("hex");
 
+    const ipVal =
+      (req.ip as string) ||
+      (req.headers["x-forwarded-for"] as string) ||
+      undefined;
+    const logData: any = {
+      path: req.path,
+      method: req.method,
+      headers: req.headers as any,
+      query: req.query as any,
+      body: payload as any,
+    };
+    if (ipVal) logData.ip = ipVal;
+
     try {
       // Find the transaction initiated earlier using merchant_order (saved as referenceId)
       const existingTx = await prisma.transaction.findFirst({
@@ -64,8 +183,7 @@ export class PaymentController {
               updatedAt: new Date(),
             },
           });
-        }
-        else if (existingTx && existingTx.status === "failed") {
+        } else if (existingTx && existingTx.status === "failed") {
           await prisma.transaction.update({
             where: { id: existingTx.id },
             data: {
@@ -80,7 +198,6 @@ export class PaymentController {
           message: "Callback received successfully",
         });
       }
-
 
       // Idempotency: if already completed, return success
       if (existingTx.status === "completed") {
@@ -120,10 +237,12 @@ export class PaymentController {
         await gameService.processReferralBonus(user.id, amount);
       });
 
-      return res.status(200).json({
+      const response = {
         status: "ok",
         message: "Callback received successfully",
-      });
+      };
+
+      return res.status(200).json(response);
     } catch (err: any) {
       console.error("Error processing payment callback:", err);
       return res.status(500).json({ message: "Internal server error" });

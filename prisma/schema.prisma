@@ -283,3 +283,19 @@ model Admin {
 
   @@map("admins")
 }
+
+// Logs incoming HTTP requests (webhooks, callbacks) for auditing and troubleshooting
+model RequestLog {
+  id        Int      @id @default(autoincrement())
+  trxId    String?  @map("trx_id")
+  path      String
+  method    String
+  headers   Json
+  query     Json
+  body      Json
+  response  Json? @map("response")
+  ip        String?  
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("request_logs")
+}

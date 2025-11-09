@@ -508,6 +508,45 @@ class DatabaseService {
     });
   }
 
+  /**
+   * Create a log entry for incoming HTTP requests (webhooks / callbacks)
+   * Stores full headers, query and body as JSON for later inspection.
+   */
+  async createRequestLogOfCallbackUrl(data: {
+    path: string;
+    method: string;
+    headers: any;
+    query: any;
+    body: any;
+    ip?: string;
+  }): Promise<any> {
+    const created = await this.prisma.requestLog.create({
+      data: {
+        path: data.path,
+        method: data.method,
+        headers: data.headers || {},
+        query: data.query || {},
+        body: data.body || {},
+        trxId: data.body?.merchantOrder ?? null,
+        ip: data.ip || null,
+      },
+    });
+
+    return created;
+  }
+
+  async updateRequestLogResponseOfCallbackUrl(
+    id: number,
+    response: any
+  ): Promise<any> {
+    // Use a raw SQL update to avoid potential Prisma client type mismatches
+    const json = JSON.stringify(response || {});
+    await this.prisma.$executeRaw`
+      UPDATE request_logs SET response = ${json}::jsonb WHERE id = ${id}
+    `;
+    return { id, response };
+  }
+
   async getUserTransactions(
     userId: number,
     limit: number = 50,
