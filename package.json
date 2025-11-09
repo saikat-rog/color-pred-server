@@ -6,6 +6,7 @@
   "scripts": {
     "postinstall": "prisma generate",
     "build": "tsc",
+    "prestart": "npx prisma migrate deploy",
     "start": "node dist/server.js",
     "dev": "nodemon src/server.ts",
     "dev:ts": "ts-node src/server.ts",
@@ -17,7 +18,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "@prisma/client": "^6.16.3",
+    "@prisma/client": "^6.19.0",
     "axios": "^1.13.2",
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
