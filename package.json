@@ -6,7 +6,7 @@
   "scripts": {
     "postinstall": "prisma generate",
     "build": "tsc",
-    "prestart": "npm ci --include=dev && npm run build && npx prisma migrate dev",
+    "prestart": "npx prisma generate && npx prisma migrate deploy",
     "start": "node dist/server.js",
     "dev": "nodemon src/server.ts",
     "dev:ts": "ts-node src/server.ts",
@@ -18,17 +18,17 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "@prisma/client": "^6.19.0",
-    "axios": "^1.13.2",
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
-    "dotenv": "^17.2.3",
     "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "socket.io": "^4.8.1",
+    "@prisma/client": "^6.19.0",
+    "axios": "^1.13.2",
+    "dotenv": "^17.2.3",
     "express-rate-limit": "^8.1.0",
     "helmet": "^8.1.0",
-    "jsonwebtoken": "^9.0.2",
     "prisma": "^6.16.3",
-    "socket.io": "^4.8.1",
     "uuid": "^13.0.0"
   },
   "devDependencies": {
