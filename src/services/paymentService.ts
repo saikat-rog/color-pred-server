@@ -120,14 +120,7 @@ export class PaymentService {
     const amountStr = Number(amount).toFixed(2);
 
     // Generate md5 hash signature for Lg Pay
-    const strA = `app_id=${config.lgpay.appId}
-      &ip=0.0.0.0 
-      &money=${Number(amountStr)*100}
-      &notify_url=${config.lgpay.callbackUrl}
-      &order_sn=${order_sn}
-      &remark=${description ?? "RECHARGE_REMARK"}
-      &trade_type=${config.lgpay.tradeType}
-      &key=${config.lgpay.secretKey}`;
+    const strA = `app_id=${config.lgpay.appId}&ip=0.0.0.0&money=${Number(amountStr)*100}&notify_url=${config.lgpay.callbackUrl}&order_sn=${order_sn}&remark=${description ?? "RECHARGE_REMARK"}&trade_type=${config.lgpay.tradeType}&key=${config.lgpay.secretKey}`;
       
     const signature = crypto.createHash("md5").update(strA).digest("hex").toUpperCase();
 
@@ -194,7 +187,7 @@ export class PaymentService {
     await databaseService.createTransactionForWalletRecharge(transactionData);
 
     // Extract payment URL from provider response (handle common variants)
-    const paymentUrl = providerResponse?.pay_url || null;
+    const paymentUrl = providerResponse?.data.pay_url || null;
 
     return {
       success: true,
