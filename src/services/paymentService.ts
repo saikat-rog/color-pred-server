@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import axios from "axios";
+import qs from "qs";
 import crypto from "crypto";
 import { config } from "../config";
 import { databaseService } from "./databaseService";
@@ -7,7 +8,6 @@ import { databaseService } from "./databaseService";
 const prisma = new PrismaClient();
 
 export class PaymentService {
-
   async initiatePaymentWithBondPay(
     userId: number,
     amount: string,
@@ -84,7 +84,7 @@ export class PaymentService {
       amount: Number(amount),
       description: description || `Recharge via BondPay`,
       transactionId: merchant_order_no,
-      referenceId: signature
+      referenceId: signature,
     };
 
     // Use the dedicated helper which creates a transaction for wallet recharge
@@ -104,6 +104,106 @@ export class PaymentService {
         amount: amount,
         paymentUrl,
         merchantOrderNo: merchant_order_no,
+      },
+    };
+  }
+
+  async initiatePaymentWithLgPay(
+    userId: number,
+    amount: string,
+    description: string
+  ): Promise<any> {
+    // Build order_sn using crypto.randomUUID() to avoid ESM-only uuid issues
+    const order_sn = `TRX_${crypto.randomUUID()}`;
+
+    // Format amount as string with two decimals
+    const amountStr = Number(amount).toFixed(2);
+
+    // Generate md5 hash signature for Lg Pay
+    const strA = `app_id=${config.lgpay.appId}
+      &ip=0.0.0.0 
+      &money=${Number(amountStr)*100}
+      &notify_url=${config.lgpay.callbackUrl}
+      &order_sn=${order_sn}
+      &remark=${description ?? "RECHARGE_REMARK"}
+      &trade_type=${config.lgpay.tradeType}
+      &key=${config.lgpay.secretKey}`;
+      
+    const signature = crypto.createHash("md5").update(strA).digest("hex").toUpperCase();
+
+    // Prepare payload
+    const payloadForPaymentUrl: any = {
+      app_id: config.lgpay.appId,
+      trade_type: config.lgpay.tradeType,
+      order_sn: order_sn,
+      money: Number(amountStr)*100,
+      notify_url: config.lgpay.callbackUrl,
+      ip: "0.0.0.0",
+      remark: description ?? "RECHARGE_REMARK",
+      sign: signature,
+    };
+
+    // Make POST request using axios
+    let providerResponse: any = null;
+    try {
+      const response = await axios.post(
+        config.lgpay.apiUrl,
+        qs.stringify(payloadForPaymentUrl),
+        {
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        }
+      );
+      providerResponse = response.data;
+    } catch (err: any) {
+      // Handle axios error with response (non-2xx) or network error
+      if (axios.isAxiosError(err) && err.response) {
+        providerResponse = err.response.data;
+        console.error(
+          "Lgpay provider error",
+          err.response.status,
+          providerResponse
+        );
+        return {
+          success: false,
+          statusCode: 502,
+          message: "Lgpay returned an error",
+          provider: providerResponse,
+        };
+      }
+
+      console.error("Error calling Lgpay provider:", err);
+      return {
+        success: false,
+        statusCode: 502,
+        message: "Failed to connect Lgpay",
+        error: String(err),
+      };
+    }
+
+    // At this point provider responded with success (2xx). Proceed to add recharge.
+    let transactionData: any = {
+      userId,
+      type: "recharge",
+      amount: Number(amount),
+      description: description || `Recharge via Lgpay`,
+      transactionId: order_sn,
+      referenceId: "no signature as lgpay",
+    };
+
+    // Use the dedicated helper which creates a transaction for wallet recharge
+    await databaseService.createTransactionForWalletRecharge(transactionData);
+
+    // Extract payment URL from provider response (handle common variants)
+    const paymentUrl = providerResponse?.pay_url || null;
+
+    return {
+      success: true,
+      statusCode: 200,
+      message: "Recharge initiated successfully",
+      data: {
+        amount: amount,
+        paymentUrl,
+        merchantOrderNo: order_sn,
       },
     };
   }

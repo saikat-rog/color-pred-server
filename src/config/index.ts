@@ -38,6 +38,14 @@ export const config = {
     callbackUrl: process.env.GATEWAY_BONDPAY_CALLBACK_URL || '',
   },
 
+  lgpay: {
+    appId: process.env.GATEWAY_LGPAY_APP_ID || '',
+    apiUrl: process.env.GATEWAY_LGPAY_API_URL || '',
+    secretKey: process.env.GATEWAY_LGPAY_SECRET_KEY || '',
+    callbackUrl: process.env.GATEWAY_LGPAY_CALLBACK_URL || '',
+    tradeType: process.env.GATEWAY_LGPAY_TRADE_TYPE || '',
+  },
+
   frontend: {
     baseUrl: process.env.FRONTEND_BASE_URL || 'www.google.com',
   }

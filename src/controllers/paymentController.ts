@@ -118,55 +118,65 @@ export class PaymentController {
       console.error("Failed to attach response interceptors:", err);
     }
 
-    const { merchantOrder, status, amount } = payload;
+    const { merchantOrder, order_sn, status, amount, money, sign, remark } =
+      payload;
 
     // Basic validation
-    if (!merchantOrder || !status) {
+    if ((!merchantOrder && !order_sn) || !status) {
       return res.status(400).json({
-        message: "Invalid payload: merchantOrder and status are required",
+        message:
+          "Invalid payload: merchantOrder or order_sn and status are required",
       });
     }
 
-    const numericAmount = Number(amount || 0);
+    const numericAmount = Number(amount ?? money ?? 0);
     if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
       // We allow zero only if provider uses different flow; treat as invalid for safety
       return res.status(400).json({ message: "Invalid amount" });
     }
 
-    const amountStr = Number(amount).toFixed(2);
+    let str = "";
+    let signature = "";
 
-    const str =
-      config.bondpay.merchantId +
-      amountStr +
-      merchantOrder +
-      config.bondpay.apiKey +
-      config.bondpay.callbackUrl;
+    const amountInInr = Number(amount ?? money).toFixed(2);
+    if (amount) {
+      str =
+        config.bondpay.merchantId +
+        amountInInr +
+        merchantOrder +
+        config.bondpay.apiKey +
+        config.bondpay.callbackUrl;
 
-    const signature = crypto.createHash("md5").update(str).digest("hex");
+      signature = crypto.createHash("md5").update(str).digest("hex");
+    } else if (money) {
+      const strA = `app_id=${config.lgpay.appId}
+            &ip=0.0.0.0 
+            &money=${Number(amountInInr) * 100}
+            &notify_url=${config.lgpay.callbackUrl}
+            &order_sn=${order_sn}
+            &remark=${remark}
+            &trade_type=${config.lgpay.tradeType}
+            &key=${config.lgpay.secretKey}`;
 
-    const ipVal =
-      (req.ip as string) ||
-      (req.headers["x-forwarded-for"] as string) ||
-      undefined;
-    const logData: any = {
-      path: req.path,
-      method: req.method,
-      headers: req.headers as any,
-      query: req.query as any,
-      body: payload as any,
-    };
-    if (ipVal) logData.ip = ipVal;
+      signature = crypto
+        .createHash("md5")
+        .update(strA)
+        .digest("hex")
+        .toUpperCase();
+    }
 
     try {
       // Find the transaction initiated earlier using merchant_order (saved as referenceId)
       const existingTx = await prisma.transaction.findFirst({
-        where: { transactionId: merchantOrder },
+        where: { transactionId: merchantOrder ?? order_sn },
       });
 
-      if (existingTx?.referenceId !== signature) {
+      if (existingTx?.referenceId !== signature && sign !== signature) {
         // If signatures don't match, log and return 403
         console.error(
-          `Payment callback: signature mismatch for merchantOrder ${merchantOrder}`
+          `Payment callback: signature mismatch for merchantOrder ${
+            merchantOrder ?? order_sn
+          }`
         );
         return res.status(403).json({
           message: "Signature mismatch",
@@ -174,7 +184,7 @@ export class PaymentController {
       }
 
       // If provider reports failure, mark pending tx as failed (if exists)
-      if (status !== "success") {
+      if (status !== "success" && status !== 1) {
         if (existingTx && existingTx.status === "pending") {
           await prisma.transaction.update({
             where: { id: existingTx.id },
@@ -193,18 +203,34 @@ export class PaymentController {
           });
         }
 
-        return res.status(200).json({
-          status: "ok",
-          message: "Callback received successfully",
+        if (amount) {
+          return res.status(200).json({
+            status: "ok",
+            message: "Callback received successfully",
+          });
+        }
+        return res.end("ok");
+      }
+
+      // Ensure transaction exists before proceeding
+      if (!existingTx) {
+        console.error(
+          `Payment callback: transaction not found for ${merchantOrder ?? order_sn}`
+        );
+        return res.status(404).json({
+          message: "Transaction not found",
         });
       }
 
       // Idempotency: if already completed, return success
       if (existingTx.status === "completed") {
-        return res.status(200).json({
-          status: "ok",
-          message: "Callback received successfully",
-        });
+        if (amount) {
+          return res.status(200).json({
+            status: "ok",
+            message: "Callback received successfully",
+          });
+        }
+        return res.end("ok");
       }
 
       // Atomically update user balance and mark the existing transaction as completed
@@ -226,7 +252,6 @@ export class PaymentController {
           where: { id: existingTx.id },
           data: {
             status: "completed",
-            // ensure stored amount matches provider's settled amount
             amount: numericAmount,
             balanceBefore,
             balanceAfter,
@@ -234,15 +259,16 @@ export class PaymentController {
           },
         });
         // Trigger referral bonus processing.
-        await gameService.processReferralBonus(user.id, amount);
+        await gameService.processReferralBonus(user.id, numericAmount);
       });
 
-      const response = {
-        status: "ok",
-        message: "Callback received successfully",
-      };
-
-      return res.status(200).json(response);
+      if (amount) {
+        return res.status(200).json({
+          status: "ok",
+          message: "Callback received successfully",
+        });
+      }
+      return res.end("ok");
     } catch (err: any) {
       console.error("Error processing payment callback:", err);
       return res.status(500).json({ message: "Internal server error" });
@@ -291,12 +317,12 @@ export class PaymentController {
           );
           break;
 
-        case "onepay":
-          result = {
-            success: false,
-            statusCode: 501,
-            message: "OnePay integration is not yet implemented",
-          };
+        case "lgpay":
+          result = await paymentService.initiatePaymentWithLgPay(
+            userId,
+            amount,
+            description
+          );
           break;
 
         // Handle default case where payment method is not recognized
