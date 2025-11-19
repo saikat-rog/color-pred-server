@@ -523,17 +523,15 @@ class UserController {
         return;
       }
 
-      const transactions = await databaseService.getUserTransactions(
-        userId,
-        limit,
-        offset
-      );
+      const { items: transactions, total } =
+        await databaseService.getUserTransactions(userId, limit, offset);
 
       res.status(200).json({
         success: true,
         message: "Transactions retrieved successfully",
-        data: transactions,
+        data: { transactions, total, limit, offset },
       });
+      
     } catch (error) {
       console.error("Error in getTransactions:", error);
       res.status(500).json({

@@ -81,71 +81,72 @@ export class GameService {
     return startTime;
   }
 
+  private getPeriodStartFromFixedSlots(date: Date) {
+    const dayStart = new Date(
+      date.getFullYear(),
+      date.getMonth(),
+      date.getDate()
+    );
+    const secondsFromStart = Math.floor(
+      (date.getTime() - dayStart.getTime()) / 1000
+    );
+
+    const periodIndex = Math.floor(secondsFromStart / 180); // 3 min = 180 sec
+    const periodStart = new Date(dayStart.getTime() + periodIndex * 180 * 1000);
+
+    return { periodIndex, periodStart };
+  }
+
   /**
    * Start or resume the current period
    */
   private async startOrResumePeriod() {
-    // Find the last period (any status)
-    const lastPeriod = await prisma.gamePeriod.findFirst({
-      orderBy: { endTime: "desc" },
-    });
+    const now = getIstDate();
 
-    let periodStartTime;
-    if (lastPeriod) {
-      // Start next period exactly at the end of the last period
-      periodStartTime = new Date(lastPeriod.endTime);
-    } else {
-      // No previous period, use current time rounded to slot
-      periodStartTime = this.calculatePeriodStartTime(new Date());
-    }
-    const periodId = this.generatePeriodId(periodStartTime);
+    // 1️⃣ get today's 3-min slot
+    const { periodIndex, periodStart } = this.getPeriodStartFromFixedSlots(now);
 
-    // Strictly check for any existing period with this periodId
+    // 2️⃣ generate correct periodId like 20251119001
+    const periodId = this.generatePeriodId(periodStart);
+
+    // 3️⃣ find or create
     let period = await prisma.gamePeriod.findFirst({
       where: { periodId },
-      orderBy: { id: "asc" },
     });
 
     if (!period) {
-      // Create new period
-      const endTime = new Date(periodStartTime.getTime() + 3 * 60 * 1000); // +3 minutes
-      const bettingEndTime = new Date(
-        periodStartTime.getTime() + 2.5 * 60 * 1000
-      ); // +2:30 minutes
+      const endTime = new Date(periodStart.getTime() + 180000);
+      const bettingEndTime = new Date(periodStart.getTime() + 150000); // 2:30 mins
 
       period = await prisma.gamePeriod.create({
         data: {
           periodId,
-          startTime: periodStartTime,
+          startTime: periodStart,
           endTime,
           bettingEndTime,
           status: "active",
         },
       });
-      console.log(`🆕 Created new period: ${periodId}`);
+
+      console.log("🆕 Created new fixed-slot period:", periodId);
     } else {
-      console.log(`♻️  Resumed existing period: ${periodId}`);
+      console.log("♻️ Resumed existing fixed-slot period:", periodId);
     }
 
     this.currentPeriod = period;
 
-    // Schedule period end
-    const now = getIstDate();
+    // 4️⃣ schedule tasks
     const timeUntilEnd = period.endTime.getTime() - now.getTime();
     if (timeUntilEnd > 0) {
       this.schedulePeriodEnd(timeUntilEnd);
 
-      // Schedule betting lock (30 seconds before end)
-      const timeUntilBettingEnd =
-        period.bettingEndTime.getTime() - now.getTime();
-      if (timeUntilBettingEnd > 0) {
-        setTimeout(() => this.lockBetting(), timeUntilBettingEnd);
+      const timeUntilBetting = period.bettingEndTime.getTime() - now.getTime();
+      if (timeUntilBetting > 0) {
+        setTimeout(() => this.lockBetting(), timeUntilBetting);
       } else {
-        // Already in locked period
         await this.lockBetting();
       }
     } else {
-      // Period should have ended, complete it immediately
       await this.completePeriod();
     }
   }
@@ -495,11 +496,11 @@ export class GameService {
     });
 
     let betDescription = "";
-    if (!color) {
+    if (color) {
       betDescription = `Bet on color ${color} - Period ${period.periodId}`;
     }
 
-    if (!number) {
+    if (number) {
       betDescription = `Bet on number ${number} - Period ${period.periodId}`;
     }
 

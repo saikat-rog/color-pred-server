@@ -551,13 +551,21 @@ class DatabaseService {
     userId: number,
     limit: number = 50,
     offset: number = 0
-  ): Promise<any[]> {
-    return await this.prisma.transaction.findMany({
-      where: { userId },
-      orderBy: { createdAt: "desc" },
-      take: limit,
-      skip: offset,
-    });
+  ) {
+    const [items, total] = await Promise.all([
+      this.prisma.transaction.findMany({
+        where: { userId },
+        orderBy: { createdAt: "desc" },
+        take: limit,
+        skip: offset,
+      }),
+      this.prisma.transaction.count({ where: { userId } }),
+    ]);
+
+    // Remove sensitive field referenceId before returning
+    const sanitizedItems = items.map(({ referenceId, ...rest }) => rest);
+
+    return { items: sanitizedItems, total };
   }
 
   async getTransactionById(transactionId: number): Promise<any> {
