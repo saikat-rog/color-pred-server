@@ -568,13 +568,6 @@ class DatabaseService {
     return { items: sanitizedItems, total };
   }
 
-  async getTransactionById(transactionId: number): Promise<any> {
-    return await this.prisma.transaction.findUnique({
-      where: { id: transactionId },
-      include: { user: true },
-    });
-  }
-
   async updateTransactionStatus(
     transactionId: number,
     status: string,
