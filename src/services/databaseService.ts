@@ -409,25 +409,35 @@ class DatabaseService {
     });
   }
 
-  async getUserWithdrawalRequests(userId: number): Promise<any[]> {
-    return await this.prisma.withdrawalRequest.findMany({
-      where: {
-        userId,
-      },
-      include: {
-        bankAccount: {
-          select: {
-            accountNumber: true,
-            accountName: true,
-            ifscCode: true,
-            upiId: true,
+  async getUserWithdrawalRequests(
+    userId: number,
+    limit: number = 50,
+    offset: number = 0
+  ) {
+    const [items, total] = await Promise.all([
+      this.prisma.withdrawalRequest.findMany({
+        where: {
+          userId,
+        },
+        include: {
+          bankAccount: {
+            select: {
+              accountNumber: true,
+              accountName: true,
+              ifscCode: true,
+              upiId: true,
+            },
           },
         },
-      },
-      orderBy: {
-        requestedAt: "desc",
-      },
-    });
+        orderBy: {
+          requestedAt: "desc",
+        },
+        take: limit,
+        skip: offset,
+      }),
+      this.prisma.withdrawalRequest.count({ where: { userId } }),
+    ]);
+    return { items, total };
   }
 
   async findWithdrawalRequestByIdAndUser(

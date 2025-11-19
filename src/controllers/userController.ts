@@ -401,6 +401,9 @@ class UserController {
   async getWithdrawalRequests(req: Request, res: Response): Promise<void> {
     try {
       const userId = (req as any).user?.userId;
+      const limit = parseInt(req.query.limit as string) || 50;
+      const offset = parseInt(req.query.offset as string) || 0;
+
       if (!userId) {
         res.status(401).json({
           success: false,
@@ -409,13 +412,13 @@ class UserController {
         return;
       }
 
-      const withdrawalRequests =
-        await databaseService.getUserWithdrawalRequests(userId);
+      const { items: withdrawalRequests, total } =
+        await databaseService.getUserWithdrawalRequests(userId, limit, offset);
 
       res.status(200).json({
         success: true,
         message: "Withdrawal requests retrieved successfully",
-        data: withdrawalRequests,
+        data: { withdrawalRequests, total, limit, offset },
       });
     } catch (error) {
       console.error("Error in getWithdrawalRequests:", error);
