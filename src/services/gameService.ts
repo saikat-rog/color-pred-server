@@ -726,46 +726,61 @@ export class GameService {
    * Get current period information
    */
   async getCurrentPeriod() {
-    let now = new Date();
-
-    // Convert current UTC time to IST
-    const istOffset = 5.5 * 60 * 60 * 1000; // +05:30 in ms
-    now = new Date(now.getTime() + istOffset);
+    const now = getIstDate();
 
     // Prefer the in-memory currentPeriod to avoid race conditions when a period
     // is being rolled over but the database row for the next period isn't yet
     // visible to quick reads. If the in-memory period appears valid for now,
     // return it immediately.
-    // if (this.currentPeriod) {
-    //   try {
-    //     const cp = this.currentPeriod as any;
-    //     if (
-    //       cp.startTime &&
-    //       cp.endTime &&
-    //       cp.startTime <= now &&
-    //       now < cp.endTime
-    //     ) {
-    //       const timeRemaining = Math.max(
-    //         0,
-    //         cp.endTime.getTime() - now.getTime()
-    //       );
-    //       const bettingTimeRemaining = Math.max(
-    //         0,
-    //         cp.bettingEndTime.getTime() - now.getTime()
-    //       );
-    //       const canBet = cp.status === "active" && bettingTimeRemaining > 0;
-    //       return {
-    //         ...cp,
-    //         timeRemaining: Math.floor(timeRemaining / 1000),
-    //         bettingTimeRemaining: Math.floor(bettingTimeRemaining / 1000),
-    //         canBet,
-    //       };
-    //     }
-    //   } catch (err) {
-    //     // If anything goes wrong reading in-memory period, fall back to DB lookup
-    //     console.warn("Warning reading in-memory currentPeriod:", err);
-    //   }
-    // }
+    if (this.currentPeriod) {
+      try {
+        const cp = this.currentPeriod as any;
+        if (
+          cp.startTime &&
+          cp.endTime &&
+          cp.startTime <= now &&
+          now < cp.endTime
+        ) {
+          const timeRemaining = Math.max(
+            0,
+            cp.endTime.getTime() - now.getTime()
+          );
+          const bettingTimeRemaining = Math.max(
+            0,
+            cp.bettingEndTime.getTime() - now.getTime()
+          );
+          const canBet = cp.status === "active" && bettingTimeRemaining > 0;
+          
+          // Filter out sensitive betting totals from in-memory period
+          const {
+            totalRedBets,
+            totalGreenBets,
+            totalPurpleBets,
+            totalZeroBets,
+            totalOneBets,
+            totalTwoBets,
+            totalThreeBets,
+            totalFourBets,
+            totalFiveBets,
+            totalSixBets,
+            totalSevenBets,
+            totalEightBets,
+            totalNineBets,
+            ...filteredCp
+          } = cp;
+          
+          return {
+            ...filteredCp,
+            timeRemaining: Math.floor(timeRemaining / 1000),
+            bettingTimeRemaining: Math.floor(bettingTimeRemaining / 1000),
+            canBet,
+          };
+        }
+      } catch (err) {
+        // If anything goes wrong reading in-memory period, fall back to DB lookup
+        console.warn("Warning reading in-memory currentPeriod:", err);
+      }
+    }
 
     // Try to find a period that spans 'now' (handles DB visibility during rollovers)
     let period = await prisma.gamePeriod.findFirst({
@@ -776,10 +791,10 @@ export class GameService {
     });
 
     // If not found in DB (possible race between end and creation), ensure service creates/resumes period
-    // if (!period) {
-    //   await this.startOrResumePeriod();
-    //   period = this.currentPeriod as any;
-    // }
+    if (!period) {
+      await this.startOrResumePeriod();
+      period = this.currentPeriod as any;
+    }
 
     if (!period) return null;
 
@@ -790,21 +805,21 @@ export class GameService {
     );
     const canBet = period.status === "active" && bettingTimeRemaining > 0;
 
-    // Exclude fields by destructuring
+    // Exclude sensitive betting total fields by destructuring
     const {
-      // totalRedBets,
-      // totalGreenBets,
-      // totalPurpleBets,
-      // totalZeroBets,
-      // totalOneBets,
-      // totalTwoBets,
-      // totalThreeBets,
-      // totalFourBets,
-      // totalFiveBets,
-      // totalSixBets,
-      // totalSevenBets,
-      // totalEightBets,
-      // totalNineBets
+      totalRedBets,
+      totalGreenBets,
+      totalPurpleBets,
+      totalZeroBets,
+      totalOneBets,
+      totalTwoBets,
+      totalThreeBets,
+      totalFourBets,
+      totalFiveBets,
+      totalSixBets,
+      totalSevenBets,
+      totalEightBets,
+      totalNineBets,
       ...filteredPeriod
     } = period;
     return {
