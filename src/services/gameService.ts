@@ -51,12 +51,13 @@ export class GameService {
    * Generate period ID in format YYYYMMDD001
    */
   private generatePeriodId(date: Date): string {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
+    // Use UTC methods since date is already shifted by IST offset
+    const year = date.getUTCFullYear();
+    const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+    const day = String(date.getUTCDate()).padStart(2, "0");
 
     // Calculate period number for the day (1-480)
-    const minutesFromMidnight = date.getHours() * 60 + date.getMinutes();
+    const minutesFromMidnight = date.getUTCHours() * 60 + date.getUTCMinutes();
     const periodNumber = Math.floor(minutesFromMidnight / 3) + 1;
 
     return `${year}${month}${day}${String(periodNumber).padStart(3, "0")}`;
@@ -82,11 +83,14 @@ export class GameService {
   }
 
   private getPeriodStartFromFixedSlots(date: Date) {
-    const dayStart = new Date(
-      date.getFullYear(),
-      date.getMonth(),
-      date.getDate()
-    );
+    // date is already IST-shifted, so use UTC methods to get the correct day start
+    const dayStart = new Date(Date.UTC(
+      date.getUTCFullYear(),
+      date.getUTCMonth(),
+      date.getUTCDate(),
+      0, 0, 0, 0
+    ));
+    
     const secondsFromStart = Math.floor(
       (date.getTime() - dayStart.getTime()) / 1000
     );
