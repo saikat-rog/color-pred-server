@@ -118,28 +118,45 @@ export class GameService {
     // 2️⃣ generate correct periodId like 20251119001
     const periodId = this.generatePeriodId(periodStart, periodDurationMinutes);
 
-    // 3️⃣ find or create using upsert to avoid race conditions
+    // 3️⃣ find or create with retry logic to handle race conditions
     const endTime = new Date(periodStart.getTime() + periodDurationMs);
     const bettingEndTime = new Date(periodStart.getTime() + bettingDurationMs);
 
-    const period = await prisma.gamePeriod.upsert({
-      where: { periodId },
-      update: {}, // If exists, don't update anything
-      create: {
-        periodId,
-        startTime: periodStart,
-        endTime,
-        bettingEndTime,
-        status: "active",
-      },
-    });
+    let period;
+    try {
+      period = await prisma.gamePeriod.upsert({
+        where: { periodId },
+        update: {}, // If exists, don't update anything
+        create: {
+          periodId,
+          startTime: periodStart,
+          endTime,
+          bettingEndTime,
+          status: "active",
+        },
+      });
 
-    // Check if we created or found existing
-    const isNew = period.createdAt.getTime() === new Date().getTime();
-    if (isNew) {
-      console.log("🆕 Created new fixed-slot period:", periodId);
-    } else {
-      console.log("♻️ Resumed existing fixed-slot period:", periodId);
+      // Check if we created or found existing
+      const isNew = period.createdAt.getTime() === new Date().getTime();
+      if (isNew) {
+        console.log("🆕 Created new fixed-slot period:", periodId);
+      } else {
+        console.log("♻️ Resumed existing fixed-slot period:", periodId);
+      }
+    } catch (error: any) {
+      // If unique constraint fails (race condition), just fetch the existing period
+      if (error.code === 'P2002') {
+        period = await prisma.gamePeriod.findUnique({
+          where: { periodId },
+        });
+        console.log("♻️ Resumed existing fixed-slot period (race condition):", periodId);
+      } else {
+        throw error; // Re-throw other errors
+      }
+    }
+
+    if (!period) {
+      throw new Error(`Failed to create or find period ${periodId}`);
     }
 
     this.currentPeriod = period;
