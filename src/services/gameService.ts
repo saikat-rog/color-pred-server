@@ -50,15 +50,15 @@ export class GameService {
   /**
    * Generate period ID in format YYYYMMDD001
    */
-  private generatePeriodId(date: Date): string {
+  private generatePeriodId(date: Date, periodDurationMinutes: number): string {
     // Use UTC methods since date is already shifted by IST offset
     const year = date.getUTCFullYear();
     const month = String(date.getUTCMonth() + 1).padStart(2, "0");
     const day = String(date.getUTCDate()).padStart(2, "0");
 
-    // Calculate period number for the day (1-480)
+    // Calculate period number for the day based on dynamic period duration
     const minutesFromMidnight = date.getUTCHours() * 60 + date.getUTCMinutes();
-    const periodNumber = Math.floor(minutesFromMidnight / 3) + 1;
+    const periodNumber = Math.floor(minutesFromMidnight / periodDurationMinutes) + 1;
 
     return `${year}${month}${day}${String(periodNumber).padStart(3, "0")}`;
   }
@@ -82,7 +82,7 @@ export class GameService {
     return startTime;
   }
 
-  private getPeriodStartFromFixedSlots(date: Date) {
+  private getPeriodStartFromFixedSlots(date: Date, periodDurationSeconds: number) {
     // date is already IST-shifted, so use UTC methods to get the correct day start
     const dayStart = new Date(Date.UTC(
       date.getUTCFullYear(),
@@ -95,8 +95,8 @@ export class GameService {
       (date.getTime() - dayStart.getTime()) / 1000
     );
 
-    const periodIndex = Math.floor(secondsFromStart / 180); // 3 min = 180 sec
-    const periodStart = new Date(dayStart.getTime() + periodIndex * 180 * 1000);
+    const periodIndex = Math.floor(secondsFromStart / periodDurationSeconds);
+    const periodStart = new Date(dayStart.getTime() + periodIndex * periodDurationSeconds * 1000);
 
     return { periodIndex, periodStart };
   }
@@ -107,11 +107,21 @@ export class GameService {
   private async startOrResumePeriod() {
     const now = getIstDate();
 
-    // 1️⃣ get today's 3-min slot
-    const { periodIndex, periodStart } = this.getPeriodStartFromFixedSlots(now);
+    // Fetch game settings for dynamic durations
+    const settings = await prisma.gameSettings.findFirst();
+    if (!settings) {
+      throw new Error("Game settings not found");
+    }
+
+    const periodDurationMs = settings.periodDuration * 1000; // Convert to milliseconds
+    const bettingDurationMs = settings.bettingDuration * 1000; // Convert to milliseconds
+    const periodDurationMinutes = settings.periodDuration / 60; // Convert to minutes
+
+    // 1️⃣ get today's period slot based on dynamic duration
+    const { periodIndex, periodStart } = this.getPeriodStartFromFixedSlots(now, settings.periodDuration);
 
     // 2️⃣ generate correct periodId like 20251119001
-    const periodId = this.generatePeriodId(periodStart);
+    const periodId = this.generatePeriodId(periodStart, periodDurationMinutes);
 
     // 3️⃣ find or create
     let period = await prisma.gamePeriod.findFirst({
@@ -119,8 +129,8 @@ export class GameService {
     });
 
     if (!period) {
-      const endTime = new Date(periodStart.getTime() + 180000);
-      const bettingEndTime = new Date(periodStart.getTime() + 150000); // 2:30 mins
+      const endTime = new Date(periodStart.getTime() + periodDurationMs);
+      const bettingEndTime = new Date(periodStart.getTime() + bettingDurationMs);
 
       period = await prisma.gamePeriod.create({
         data: {
