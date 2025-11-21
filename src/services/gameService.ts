@@ -58,45 +58,37 @@ export class GameService {
 
     // Calculate period number for the day based on dynamic period duration
     const minutesFromMidnight = date.getUTCHours() * 60 + date.getUTCMinutes();
-    const periodNumber = Math.floor(minutesFromMidnight / periodDurationMinutes) + 1;
+    const periodNumber =
+      Math.floor(minutesFromMidnight / periodDurationMinutes) + 1;
 
     return `${year}${month}${day}${String(periodNumber).padStart(3, "0")}`;
   }
 
-  /**
-   * Calculate the start time for the current period
-   */
-  private calculatePeriodStartTime(now: Date): Date {
-    // Convert current UTC time to IST
-    const istOffset = 5.5 * 60 * 60 * 1000; // +05:30 in ms
-    const istNow = new Date(now.getTime() + istOffset);
-
-    const minutesFromMidnight = istNow.getHours() * 60 + istNow.getMinutes();
-    const periodIndex = Math.floor(minutesFromMidnight / 3);
-    const periodStartMinutes = periodIndex * 3;
-
-    const startTime = new Date(istNow);
-    startTime.setHours(0, 0, 0, 0);
-    startTime.setMinutes(periodStartMinutes);
-
-    return startTime;
-  }
-
-  private getPeriodStartFromFixedSlots(date: Date, periodDurationSeconds: number) {
+  private getPeriodStartFromFixedSlots(
+    date: Date,
+    periodDurationSeconds: number
+  ) {
     // date is already IST-shifted, so use UTC methods to get the correct day start
-    const dayStart = new Date(Date.UTC(
-      date.getUTCFullYear(),
-      date.getUTCMonth(),
-      date.getUTCDate(),
-      0, 0, 0, 0
-    ));
-    
+    const dayStart = new Date(
+      Date.UTC(
+        date.getUTCFullYear(),
+        date.getUTCMonth(),
+        date.getUTCDate(),
+        0,
+        0,
+        0,
+        0
+      )
+    );
+
     const secondsFromStart = Math.floor(
       (date.getTime() - dayStart.getTime()) / 1000
     );
 
     const periodIndex = Math.floor(secondsFromStart / periodDurationSeconds);
-    const periodStart = new Date(dayStart.getTime() + periodIndex * periodDurationSeconds * 1000);
+    const periodStart = new Date(
+      dayStart.getTime() + periodIndex * periodDurationSeconds * 1000
+    );
 
     return { periodIndex, periodStart };
   }
@@ -118,30 +110,33 @@ export class GameService {
     const periodDurationMinutes = settings.periodDuration / 60; // Convert to minutes
 
     // 1️⃣ get today's period slot based on dynamic duration
-    const { periodIndex, periodStart } = this.getPeriodStartFromFixedSlots(now, settings.periodDuration);
+    const { periodIndex, periodStart } = this.getPeriodStartFromFixedSlots(
+      now,
+      settings.periodDuration
+    );
 
     // 2️⃣ generate correct periodId like 20251119001
     const periodId = this.generatePeriodId(periodStart, periodDurationMinutes);
 
-    // 3️⃣ find or create
-    let period = await prisma.gamePeriod.findFirst({
+    // 3️⃣ find or create using upsert to avoid race conditions
+    const endTime = new Date(periodStart.getTime() + periodDurationMs);
+    const bettingEndTime = new Date(periodStart.getTime() + bettingDurationMs);
+
+    const period = await prisma.gamePeriod.upsert({
       where: { periodId },
+      update: {}, // If exists, don't update anything
+      create: {
+        periodId,
+        startTime: periodStart,
+        endTime,
+        bettingEndTime,
+        status: "active",
+      },
     });
 
-    if (!period) {
-      const endTime = new Date(periodStart.getTime() + periodDurationMs);
-      const bettingEndTime = new Date(periodStart.getTime() + bettingDurationMs);
-
-      period = await prisma.gamePeriod.create({
-        data: {
-          periodId,
-          startTime: periodStart,
-          endTime,
-          bettingEndTime,
-          status: "active",
-        },
-      });
-
+    // Check if we created or found existing
+    const isNew = period.createdAt.getTime() === new Date().getTime();
+    if (isNew) {
       console.log("🆕 Created new fixed-slot period:", periodId);
     } else {
       console.log("♻️ Resumed existing fixed-slot period:", periodId);
@@ -760,7 +755,7 @@ export class GameService {
             cp.bettingEndTime.getTime() - now.getTime()
           );
           const canBet = cp.status === "active" && bettingTimeRemaining > 0;
-          
+
           // Filter out sensitive betting totals from in-memory period
           const {
             totalRedBets,
@@ -778,7 +773,7 @@ export class GameService {
             totalNineBets,
             ...filteredCp
           } = cp;
-          
+
           return {
             ...filteredCp,
             timeRemaining: Math.floor(timeRemaining / 1000),
