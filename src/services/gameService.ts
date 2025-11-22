@@ -7,6 +7,7 @@ const prisma = new PrismaClient();
 export class GameService {
   private currentPeriod: any = null;
   private periodTimer: NodeJS.Timeout | null = null;
+  private midnightTimer: NodeJS.Timeout | null = null;
 
   /**
    * Initialize the game service and start the period cycle
@@ -17,8 +18,209 @@ export class GameService {
     // Ensure game settings exist
     await this.ensureGameSettings();
 
+    // Generate all periods for today
+    await this.generatePeriodsForToday();
+
+    // Schedule midnight task to generate tomorrow's periods
+    this.scheduleMidnightTask();
+
     // Start or resume the current period
     await this.startOrResumePeriod();
+  }
+
+  /**
+   * Schedule a task to run before midnight IST to generate next day's periods
+   */
+  private scheduleMidnightTask() {
+    const now = getIstDate();
+    
+    // Calculate time until 23:59:00 IST (1 minute before midnight)
+    const beforeMidnight = new Date(
+      Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate(),
+        23, 59, 0, 0
+      )
+    );
+    
+    // If we're past 23:59:00 today, schedule for tomorrow's 23:59:00
+    if (now.getTime() >= beforeMidnight.getTime()) {
+      beforeMidnight.setUTCDate(beforeMidnight.getUTCDate() + 1);
+    }
+    
+    const timeUntilGeneration = beforeMidnight.getTime() - now.getTime();
+    
+    console.log(`⏰ Scheduling next day period generation in ${Math.round(timeUntilGeneration / 1000 / 60)} minutes (at 23:59:00)`);
+    
+    this.midnightTimer = setTimeout(async () => {
+      console.log("🌙 23:59:00 reached - generating tomorrow's periods");
+      await this.generatePeriodsForTomorrow();
+      // Reschedule for next day
+      this.scheduleMidnightTask();
+    }, timeUntilGeneration);
+  }
+
+  /**
+   * Generate all periods for tomorrow
+   */
+  private async generatePeriodsForTomorrow() {
+    const now = getIstDate();
+    const settings = await prisma.gameSettings.findFirst();
+    if (!settings) {
+      throw new Error("Game settings not found");
+    }
+
+    const periodDurationSeconds = settings.periodDuration;
+    const periodDurationMs = periodDurationSeconds * 1000;
+    const bettingDurationMs = settings.bettingDuration * 1000;
+    const periodDurationMinutes = periodDurationSeconds / 60;
+
+    // Get start of tomorrow (00:00:00 IST)
+    const tomorrowStart = new Date(
+      Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate() + 1,
+        0, 0, 0, 0
+      )
+    );
+
+    // Get end of tomorrow (23:59:59 IST)
+    const tomorrowEnd = new Date(
+      Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate() + 1,
+        23, 59, 59, 999
+      )
+    );
+
+    // Calculate total periods in a day
+    const totalPeriodsInDay = Math.floor((24 * 60 * 60) / periodDurationSeconds);
+
+    // Fetch all existing periods for tomorrow in ONE query
+    const existingPeriods = await prisma.gamePeriod.findMany({
+      where: {
+        startTime: {
+          gte: tomorrowStart,
+          lte: tomorrowEnd,
+        },
+      },
+      select: { periodId: true },
+    });
+
+    const existingPeriodIds = new Set(existingPeriods.map(p => p.periodId));
+    const periodsToCreate = [];
+    
+    for (let i = 0; i < totalPeriodsInDay; i++) {
+      const periodStart = new Date(tomorrowStart.getTime() + i * periodDurationMs);
+      const periodEnd = new Date(periodStart.getTime() + periodDurationMs);
+      const bettingEndTime = new Date(periodStart.getTime() + bettingDurationMs);
+      const periodId = this.generatePeriodId(periodStart, periodDurationMinutes);
+
+      // Check in-memory set instead of database query
+      if (!existingPeriodIds.has(periodId)) {
+        periodsToCreate.push({
+          periodId,
+          startTime: periodStart,
+          endTime: periodEnd,
+          bettingEndTime,
+          status: "not_started",
+        });
+      }
+    }
+
+    if (periodsToCreate.length > 0) {
+      await prisma.gamePeriod.createMany({
+        data: periodsToCreate,
+        skipDuplicates: true,
+      });
+      console.log(`📅 Pre-generated ${periodsToCreate.length} periods for tomorrow`);
+    } else {
+      console.log("✅ All periods for tomorrow already exist");
+    }
+  }
+
+  /**
+   * Generate all periods for the current day based on game settings
+   */
+  private async generatePeriodsForToday() {
+    const now = getIstDate();
+    const settings = await prisma.gameSettings.findFirst();
+    if (!settings) {
+      throw new Error("Game settings not found");
+    }
+
+    const periodDurationSeconds = settings.periodDuration;
+    const periodDurationMs = periodDurationSeconds * 1000;
+    const bettingDurationMs = settings.bettingDuration * 1000;
+    const periodDurationMinutes = periodDurationSeconds / 60;
+
+    // Get start of today (00:00:00 IST)
+    const dayStart = new Date(
+      Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate(),
+        0, 0, 0, 0
+      )
+    );
+
+    // Get end of today (23:59:59 IST)
+    const dayEnd = new Date(
+      Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate(),
+        23, 59, 59, 999
+      )
+    );
+
+    // Calculate total periods in a day
+    const totalPeriodsInDay = Math.floor((24 * 60 * 60) / periodDurationSeconds);
+
+    // Fetch all existing periods for today in ONE query
+    const existingPeriods = await prisma.gamePeriod.findMany({
+      where: {
+        startTime: {
+          gte: dayStart,
+          lte: dayEnd,
+        },
+      },
+      select: { periodId: true },
+    });
+
+    const existingPeriodIds = new Set(existingPeriods.map(p => p.periodId));
+    const periodsToCreate = [];
+    
+    for (let i = 0; i < totalPeriodsInDay; i++) {
+      const periodStart = new Date(dayStart.getTime() + i * periodDurationMs);
+      const periodEnd = new Date(periodStart.getTime() + periodDurationMs);
+      const bettingEndTime = new Date(periodStart.getTime() + bettingDurationMs);
+      const periodId = this.generatePeriodId(periodStart, periodDurationMinutes);
+
+      // Check in-memory set instead of database query
+      if (!existingPeriodIds.has(periodId)) {
+        periodsToCreate.push({
+          periodId,
+          startTime: periodStart,
+          endTime: periodEnd,
+          bettingEndTime,
+          status: "not_started",
+        });
+      }
+    }
+
+    if (periodsToCreate.length > 0) {
+      await prisma.gamePeriod.createMany({
+        data: periodsToCreate,
+        skipDuplicates: true,
+      });
+      console.log(`📅 Pre-generated ${periodsToCreate.length} periods for today`);
+    } else {
+      console.log("✅ All periods for today already exist");
+    }
   }
 
   /**
@@ -105,8 +307,6 @@ export class GameService {
       throw new Error("Game settings not found");
     }
 
-    const periodDurationMs = settings.periodDuration * 1000; // Convert to milliseconds
-    const bettingDurationMs = settings.bettingDuration * 1000; // Convert to milliseconds
     const periodDurationMinutes = settings.periodDuration / 60; // Convert to minutes
 
     // 1️⃣ get today's period slot based on dynamic duration
@@ -118,16 +318,21 @@ export class GameService {
     // 2️⃣ generate correct periodId like 20251119001
     const periodId = this.generatePeriodId(periodStart, periodDurationMinutes);
 
-    // 3️⃣ find or create with retry logic to handle race conditions
-    const endTime = new Date(periodStart.getTime() + periodDurationMs);
-    const bettingEndTime = new Date(periodStart.getTime() + bettingDurationMs);
+    // 3️⃣ Find the pre-generated period and activate it if not started
+    let period = await prisma.gamePeriod.findUnique({
+      where: { periodId },
+    });
 
-    let period;
-    try {
-      period = await prisma.gamePeriod.upsert({
-        where: { periodId },
-        update: {}, // If exists, don't update anything
-        create: {
+    // Fallback: If period doesn't exist (edge case during midnight transition), create it
+    if (!period) {
+      console.warn(`⚠️ Period ${periodId} not pre-generated. Creating on-demand...`);
+      const periodDurationMs = settings.periodDuration * 1000;
+      const bettingDurationMs = settings.bettingDuration * 1000;
+      const endTime = new Date(periodStart.getTime() + periodDurationMs);
+      const bettingEndTime = new Date(periodStart.getTime() + bettingDurationMs);
+      
+      period = await prisma.gamePeriod.create({
+        data: {
           periodId,
           startTime: periodStart,
           endTime,
@@ -135,28 +340,22 @@ export class GameService {
           status: "active",
         },
       });
-
-      // Check if we created or found existing
-      const isNew = period.createdAt.getTime() === new Date().getTime();
-      if (isNew) {
-        console.log("🆕 Created new fixed-slot period:", periodId);
-      } else {
-        console.log("♻️ Resumed existing fixed-slot period:", periodId);
-      }
-    } catch (error: any) {
-      // If unique constraint fails (race condition), just fetch the existing period
-      if (error.code === 'P2002') {
-        period = await prisma.gamePeriod.findUnique({
-          where: { periodId },
-        });
-        console.log("♻️ Resumed existing fixed-slot period (race condition):", periodId);
-      } else {
-        throw error; // Re-throw other errors
-      }
+      console.log("🆘 Created period on-demand:", periodId);
     }
 
-    if (!period) {
-      throw new Error(`Failed to create or find period ${periodId}`);
+    // If period is not_started, activate it
+    if (period.status === "not_started") {
+      period = await prisma.gamePeriod.update({
+        where: { periodId },
+        data: { status: "active" },
+      });
+      console.log("🆕 Activated period:", periodId);
+    } else if (period.status === "active") {
+      console.log("♻️ Resumed active period:", periodId);
+    } else if (period.status === "betting_closed") {
+      console.log("🔒 Resumed betting-closed period:", periodId);
+    } else {
+      console.log("✅ Period already completed:", periodId);
     }
 
     this.currentPeriod = period;

@@ -199,7 +199,7 @@ model GamePeriod {
   startTime       DateTime  @map("start_time")
   endTime         DateTime  @map("end_time")
   bettingEndTime  DateTime  @map("betting_end_time") // endTime - 30 seconds
-  status          String    @default("active") // active, betting_closed, completed
+  status          String    @default("not_started") // not_started, active, betting_closed, completed
   winningColor    Color?    @map("winning_color")
   winningNumber   Numbers?  @map("winning_number")
   totalGreenBets  Float     @default(0) @map("total_green_bets")
