@@ -249,6 +249,8 @@ model Bet {
   @@index([periodId])
   @@index([gamePeriodId])
   @@index([status])
+  @@index([gamePeriodId, status])
+  @@index([gamePeriodId, number])
   @@map("bets")
 }
 

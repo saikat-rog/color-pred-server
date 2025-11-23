@@ -2,7 +2,9 @@ import { PrismaClient, Color } from "@prisma/client";
 import type { Numbers } from "@prisma/client";
 import { getIstDate } from "../utils/getIstDate";
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({
+  log: ["error", "warn"],
+});
 
 export class GameService {
   private currentPeriod: any = null;
@@ -33,26 +35,33 @@ export class GameService {
    */
   private scheduleMidnightTask() {
     const now = getIstDate();
-    
+
     // Calculate time until 23:59:00 IST (1 minute before midnight)
     const beforeMidnight = new Date(
       Date.UTC(
         now.getUTCFullYear(),
         now.getUTCMonth(),
         now.getUTCDate(),
-        23, 59, 0, 0
+        23,
+        59,
+        0,
+        0
       )
     );
-    
+
     // If we're past 23:59:00 today, schedule for tomorrow's 23:59:00
     if (now.getTime() >= beforeMidnight.getTime()) {
       beforeMidnight.setUTCDate(beforeMidnight.getUTCDate() + 1);
     }
-    
+
     const timeUntilGeneration = beforeMidnight.getTime() - now.getTime();
-    
-    console.log(`⏰ Scheduling next day period generation in ${Math.round(timeUntilGeneration / 1000 / 60)} minutes (at 23:59:00)`);
-    
+
+    console.log(
+      `⏰ Scheduling next day period generation in ${Math.round(
+        timeUntilGeneration / 1000 / 60
+      )} minutes (at 23:59:00)`
+    );
+
     this.midnightTimer = setTimeout(async () => {
       console.log("🌙 23:59:00 reached - generating tomorrow's periods");
       await this.generatePeriodsForTomorrow();
@@ -82,7 +91,10 @@ export class GameService {
         now.getUTCFullYear(),
         now.getUTCMonth(),
         now.getUTCDate() + 1,
-        0, 0, 0, 0
+        0,
+        0,
+        0,
+        0
       )
     );
 
@@ -92,12 +104,17 @@ export class GameService {
         now.getUTCFullYear(),
         now.getUTCMonth(),
         now.getUTCDate() + 1,
-        23, 59, 59, 999
+        23,
+        59,
+        59,
+        999
       )
     );
 
     // Calculate total periods in a day
-    const totalPeriodsInDay = Math.floor((24 * 60 * 60) / periodDurationSeconds);
+    const totalPeriodsInDay = Math.floor(
+      (24 * 60 * 60) / periodDurationSeconds
+    );
 
     // Fetch all existing periods for tomorrow in ONE query
     const existingPeriods = await prisma.gamePeriod.findMany({
@@ -110,14 +127,21 @@ export class GameService {
       select: { periodId: true },
     });
 
-    const existingPeriodIds = new Set(existingPeriods.map(p => p.periodId));
+    const existingPeriodIds = new Set(existingPeriods.map((p) => p.periodId));
     const periodsToCreate = [];
-    
+
     for (let i = 0; i < totalPeriodsInDay; i++) {
-      const periodStart = new Date(tomorrowStart.getTime() + i * periodDurationMs);
+      const periodStart = new Date(
+        tomorrowStart.getTime() + i * periodDurationMs
+      );
       const periodEnd = new Date(periodStart.getTime() + periodDurationMs);
-      const bettingEndTime = new Date(periodStart.getTime() + bettingDurationMs);
-      const periodId = this.generatePeriodId(periodStart, periodDurationMinutes);
+      const bettingEndTime = new Date(
+        periodStart.getTime() + bettingDurationMs
+      );
+      const periodId = this.generatePeriodId(
+        periodStart,
+        periodDurationMinutes
+      );
 
       // Check in-memory set instead of database query
       if (!existingPeriodIds.has(periodId)) {
@@ -136,7 +160,9 @@ export class GameService {
         data: periodsToCreate,
         skipDuplicates: true,
       });
-      console.log(`📅 Pre-generated ${periodsToCreate.length} periods for tomorrow`);
+      console.log(
+        `📅 Pre-generated ${periodsToCreate.length} periods for tomorrow`
+      );
     } else {
       console.log("✅ All periods for tomorrow already exist");
     }
@@ -163,7 +189,10 @@ export class GameService {
         now.getUTCFullYear(),
         now.getUTCMonth(),
         now.getUTCDate(),
-        0, 0, 0, 0
+        0,
+        0,
+        0,
+        0
       )
     );
 
@@ -173,12 +202,17 @@ export class GameService {
         now.getUTCFullYear(),
         now.getUTCMonth(),
         now.getUTCDate(),
-        23, 59, 59, 999
+        23,
+        59,
+        59,
+        999
       )
     );
 
     // Calculate total periods in a day
-    const totalPeriodsInDay = Math.floor((24 * 60 * 60) / periodDurationSeconds);
+    const totalPeriodsInDay = Math.floor(
+      (24 * 60 * 60) / periodDurationSeconds
+    );
 
     // Fetch all existing periods for today in ONE query
     const existingPeriods = await prisma.gamePeriod.findMany({
@@ -191,14 +225,19 @@ export class GameService {
       select: { periodId: true },
     });
 
-    const existingPeriodIds = new Set(existingPeriods.map(p => p.periodId));
+    const existingPeriodIds = new Set(existingPeriods.map((p) => p.periodId));
     const periodsToCreate = [];
-    
+
     for (let i = 0; i < totalPeriodsInDay; i++) {
       const periodStart = new Date(dayStart.getTime() + i * periodDurationMs);
       const periodEnd = new Date(periodStart.getTime() + periodDurationMs);
-      const bettingEndTime = new Date(periodStart.getTime() + bettingDurationMs);
-      const periodId = this.generatePeriodId(periodStart, periodDurationMinutes);
+      const bettingEndTime = new Date(
+        periodStart.getTime() + bettingDurationMs
+      );
+      const periodId = this.generatePeriodId(
+        periodStart,
+        periodDurationMinutes
+      );
 
       // Check in-memory set instead of database query
       if (!existingPeriodIds.has(periodId)) {
@@ -217,7 +256,9 @@ export class GameService {
         data: periodsToCreate,
         skipDuplicates: true,
       });
-      console.log(`📅 Pre-generated ${periodsToCreate.length} periods for today`);
+      console.log(
+        `📅 Pre-generated ${periodsToCreate.length} periods for today`
+      );
     } else {
       console.log("✅ All periods for today already exist");
     }
@@ -266,6 +307,9 @@ export class GameService {
     return `${year}${month}${day}${String(periodNumber).padStart(3, "0")}`;
   }
 
+  /**
+   * Generate period start time and index from fixed slots
+   */
   private getPeriodStartFromFixedSlots(
     date: Date,
     periodDurationSeconds: number
@@ -325,12 +369,16 @@ export class GameService {
 
     // Fallback: If period doesn't exist (edge case during midnight transition), create it
     if (!period) {
-      console.warn(`⚠️ Period ${periodId} not pre-generated. Creating on-demand...`);
+      console.warn(
+        `⚠️ Period ${periodId} not pre-generated. Creating on-demand...`
+      );
       const periodDurationMs = settings.periodDuration * 1000;
       const bettingDurationMs = settings.bettingDuration * 1000;
       const endTime = new Date(periodStart.getTime() + periodDurationMs);
-      const bettingEndTime = new Date(periodStart.getTime() + bettingDurationMs);
-      
+      const bettingEndTime = new Date(
+        periodStart.getTime() + bettingDurationMs
+      );
+
       period = await prisma.gamePeriod.create({
         data: {
           periodId,
@@ -535,26 +583,26 @@ export class GameService {
     const winningColor = safeWinningColorObj.color;
     const winningNumber = winningNumberObj ? winningNumberObj.number : null;
 
-    // Update period with winning color and totals
+    // Update period with winning color IMMEDIATELY so frontend sees it
     await prisma.gamePeriod.update({
       where: { id: period.id },
       data: {
         status: "completed",
         winningColor,
         winningNumber,
-        completedAt: new Date(),
+        completedAt: getIstDate(),
       },
     });
 
     console.log(
-      `🏆 Period ${period.periodId} completed. Winning color: ${winningColor}`
+      `🏆 Period ${period.periodId} completed. Winning color: ${winningColor}, Number: ${winningNumber}`
     );
 
-    // Process all bets
-    await this.settleBets(period.id, winningColor, winningNumber);
-
-    // Start next period
+    // Start next period FIRST (eliminates gap)
     await this.startOrResumePeriod();
+
+    // Process all bets AFTER starting next period (non-blocking for period transition)
+    await this.settleBets(period.id, winningColor, winningNumber);
   }
 
   /**
@@ -565,81 +613,87 @@ export class GameService {
     winningColor: Color,
     winningNumber: Numbers | null
   ) {
+    const startTime = Date.now();
+
+    const t0 = Date.now();
     const settings = await prisma.gameSettings.findFirst();
     if (!settings) return;
+    // console.log(`⏱️ Fetch settings: ${Date.now() - t0}ms`);
 
-    let winMultiplier = settings.winMultiplier;
-    let winMultiplierForNumberBet = settings.winMultiplierForNumberBet;
+    let winMultiplierColor = settings.winMultiplier;
+    let winMultiplierNumber = settings.winMultiplierForNumberBet;
 
     if (winningNumber === "zero" || winningNumber === "five") {
-      winMultiplierForNumberBet =
-        settings.winMultiplierForNumberBetOnZeroOrFive;
+      winMultiplierNumber = settings.winMultiplierForNumberBetOnZeroOrFive;
     }
 
-    // Get all bets for this period
-    const bets = await prisma.bet.findMany({
-      where: { gamePeriodId, status: "pending" },
-      include: { user: true },
+    // Use ONE transaction for everything
+    await prisma.$transaction(async (tx) => {
+
+      // 1. Update COLOR bets (bulk)
+      // const t1 = Date.now();
+      await tx.$executeRawUnsafe(`
+      UPDATE bets
+      SET 
+        status = CASE WHEN color = '${winningColor}' AND number IS NULL THEN 'won' ELSE 'lost' END,
+        win_amount = CASE WHEN color = '${winningColor}' AND number IS NULL THEN amount * ${winMultiplierColor} ELSE 0 END,
+        settled_at = NOW()
+      WHERE game_period_id = ${gamePeriodId} AND status = 'pending';
+    `);
+      // console.log(`⏱️ Update color bets: ${Date.now() - t1}ms`);
+
+      // 2. Update NUMBER bets (bulk)
+      if (winningNumber !== null) {
+        const t2 = Date.now();
+        await tx.$executeRawUnsafe(`
+        UPDATE bets
+        SET 
+          status = CASE WHEN number = '${winningNumber}' THEN 'won' ELSE status END,
+          win_amount = CASE WHEN number = '${winningNumber}' THEN amount * ${winMultiplierNumber} ELSE win_amount END
+        WHERE game_period_id = ${gamePeriodId} AND status = 'lost'; 
+      `);
+        // console.log(`⏱️ Update number bets: ${Date.now() - t2}ms`);
+      }
+
+      // 3. Update all user balances (bulk)
+      const t3 = Date.now();
+      await tx.$executeRawUnsafe(`
+      UPDATE users u
+      SET balance = u.balance + t.total_win
+      FROM (
+        SELECT user_id, SUM(win_amount) AS total_win
+        FROM bets
+        WHERE game_period_id = ${gamePeriodId} AND status = 'won'
+        GROUP BY user_id
+      ) t
+      WHERE u.id = t.user_id;
+    `);
+      // console.log(`⏱️ Update user balances: ${Date.now() - t3}ms`);
+
+      // 4. Insert transactions (bulk)
+      const t4 = Date.now();
+      await tx.$executeRawUnsafe(`
+      INSERT INTO transactions (user_id, amount, type, status, created_at)
+      SELECT 
+        user_id,
+        win_amount,
+        'bet_win_credit',
+        'completed',
+        NOW()
+      FROM bets
+      WHERE game_period_id = ${gamePeriodId} AND status = 'won';
+    `);
+      // console.log(`⏱️ Insert transactions: ${Date.now() - t4}ms`);
     });
 
-    for (const bet of bets) {
-      let isWinByNumberBet = false;
-      let isWinner = false;
-      if (!bet.number) {
-        // If no number is specified, check the color
-        isWinner = bet.color === winningColor;
-      } else {
-        isWinner = bet.number === winningNumber;
-        isWinByNumberBet = true;
-      }
+    // const endTime = Date.now();
+    // const duration = endTime - startTime;
 
-      isWinByNumberBet
-        ? (winMultiplier = winMultiplierForNumberBet)
-        : (winMultiplier = settings.winMultiplier);
-
-      const winAmount = isWinner ? bet.amount * winMultiplier : 0;
-
-      // Update bet status
-      await prisma.bet.update({
-        where: { id: bet.id },
-        data: {
-          status: isWinner ? "won" : "lost",
-          winAmount: isWinner ? winAmount : null,
-          settledAt: new Date(),
-        },
-      });
-
-      // Credit winning amount to user
-      if (isWinner) {
-        const currentBalance = bet.user.balance;
-        const newBalance = currentBalance + winAmount;
-
-        await prisma.user.update({
-          where: { id: bet.userId },
-          data: { balance: newBalance },
-        });
-
-        // Create transaction record
-        await prisma.transaction.create({
-          data: {
-            userId: bet.userId,
-            type: "bet_win_credit",
-            amount: winAmount,
-            status: "completed",
-            description: `Win from bet on Period ${bet.periodId}`,
-            referenceId: bet.id.toString(),
-            balanceBefore: currentBalance,
-            balanceAfter: newBalance,
-          },
-        });
-
-        console.log(
-          `💰 User ${bet.userId} won ${winAmount} on Period ${bet.periodId}`
-        );
-      } else {
-        console.log(`❌ User ${bet.userId} lost bet on Period ${bet.periodId}`);
-      }
-    }
+    // console.log(
+    //   `⚡ Settled period ${gamePeriodId} in bulk. Time taken: ${duration}ms (${(
+    //     duration / 1000
+    //   ).toFixed(2)}s)`
+    // );
   }
 
   /**
