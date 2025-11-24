@@ -29,6 +29,8 @@ model User {
   referredBy    User?    @relation("UserReferrals", fields: [referredById], references: [id], onDelete: SetNull)
   referrals     User[]   @relation("UserReferrals")
   referralCommissions ReferralCommission[]
+  bowBets       BowBet[]
+  bowReferralCommissions BowReferralCommission[]
 
   @@map("users")
 }
@@ -300,4 +302,113 @@ model RequestLog {
   createdAt DateTime @default(now()) @map("created_at")
 
   @@map("request_logs")
+}
+
+// ============================================
+// BOW GAME (Bet On Wheel) MODELS - Separate from main game
+// ============================================
+
+// BOW Game settings - separate from main game settings
+model BowGameSettings {
+  id                    Int      @id @default(autoincrement())
+  periodDuration        Int      @default(300) @map("period_duration") // in seconds (5 minutes default, different from main game)
+  bettingDuration       Int      @default(270) @map("betting_duration") // in seconds (4:30 minutes)
+  winMultiplier         Float    @default(1.8) @map("win_multiplier")
+  winMultiplierForNumberBet   Float    @default(9.0) @map("win_multiplier_for_number_bet")
+  winMultiplierForNumberBetOnZeroOrFive   Float    @default(5.0) @map("win_multiplier_for_number_bet_on_zero_or_five")
+  minBetAmount          Float    @default(10) @map("min_bet_amount")
+  maxBetAmount          Float    @default(10000000000) @map("max_bet_amount")
+  referralCommissionPercentage1  Float    @default(1.0) @map("referral_commission_l1")
+  referralCommissionPercentage2  Float    @default(0.5) @map("referral_commission_l2")
+  referralCommissionPercentage3  Float    @default(0.25) @map("referral_commission_l3")
+  referralSignupBonusInRs   Float    @default(1.0) @map("referral_signup_bonus")
+  minRechargeForBonus   Float    @default(500.0) @map("min_recharge_for_bonus")
+  minRechargeAmount    Float    @default(200.0) @map("min_recharge_amount")
+  maxRechargeAmount    Float    @default(50000.00) @map("max_recharge_amount")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  @@map("bow_game_settings")
+}
+
+// BOW Game period model - separate periods from main game
+model BowGamePeriod {
+  id              Int       @id @default(autoincrement())
+  periodId        String    @unique @map("period_id") // Format: YYYYMMDD001 (generated same way as main game)
+  startTime       DateTime  @map("start_time")
+  endTime         DateTime  @map("end_time")
+  bettingEndTime  DateTime  @map("betting_end_time")
+  status          String    @default("not_started") // not_started, active, betting_closed, completed
+  winningColor    Color?    @map("winning_color")
+  winningNumber   Numbers?  @map("winning_number")
+  totalGreenBets  Float     @default(0) @map("total_green_bets")
+  totalPurpleBets Float     @default(0) @map("total_purple_bets")
+  totalRedBets    Float     @default(0) @map("total_red_bets")
+  totalZeroBets   Float     @default(0) @map("total_zero_bets")
+  totalOneBets    Float     @default(0) @map("total_one_bets")
+  totalTwoBets    Float     @default(0) @map("total_two_bets")
+  totalThreeBets  Float     @default(0) @map("total_three_bets")
+  totalFourBets   Float     @default(0) @map("total_four_bets")
+  totalFiveBets   Float     @default(0) @map("total_five_bets")
+  totalSixBets    Float     @default(0) @map("total_six_bets")
+  totalSevenBets  Float     @default(0) @map("total_seven_bets")
+  totalEightBets  Float     @default(0) @map("total_eight_bets")
+  totalNineBets   Float     @default(0) @map("total_nine_bets")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  completedAt     DateTime? @map("completed_at")
+
+  // Relations
+  bets BowBet[]
+
+  @@index([periodId])
+  @@index([status])
+  @@index([startTime])
+  @@map("bow_game_periods")
+}
+
+// BOW Bet model - separate from main game bets
+model BowBet {
+  id              Int        @id @default(autoincrement())
+  userId          Int        @map("user_id")
+  periodId        String     @map("period_id")
+  gamePeriodId    Int        @map("game_period_id")
+  color           Color?
+  number          Numbers?
+  amount          Float
+  status          String     @default("pending") // pending, won, lost
+  winAmount       Float?     @map("win_amount")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  settledAt       DateTime?  @map("settled_at")
+
+  // Relations
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gamePeriod  BowGamePeriod @relation(fields: [gamePeriodId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([periodId])
+  @@index([gamePeriodId])
+  @@index([status])
+  @@index([gamePeriodId, status])
+  @@index([gamePeriodId, number])
+  @@map("bow_bets")
+}
+
+// BOW Referral commission model - separate tracking for BOW game commissions
+model BowReferralCommission {
+  id              Int      @id @default(autoincrement())
+  userId          Int      @map("user_id") // The user who earned the commission
+  fromUserId      Int      @map("from_user_id") // The user whose bet generated the commission
+  betId           Int      @map("bet_id") // The BOW bet that generated the commission
+  amount          Float    // Commission amount earned
+  percentage      Float    // Percentage used for this commission
+  level           Int      // Referral level (1, 2, or 3)
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user     User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([fromUserId])
+  @@index([betId])
+  @@index([createdAt])
+  @@map("bow_referral_commissions")
 }

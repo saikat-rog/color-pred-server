@@ -8,7 +8,9 @@ import { gameRoutes } from './routes/game';
 import { databaseService } from './services/databaseService';
 import { adminRoutes } from './routes/admin';
 import { gameService } from './services/gameService';
+import { bowGameService } from './services/bowGameService';
 import { paymentRoutes } from './routes/payment';
+import { bowGameRoutes } from './routes/bowGame';
 
 // Initialize Express app
 const app: Express = express();
@@ -81,6 +83,7 @@ app.get('/', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/game', gameRoutes);
+app.use('/api/bow-game', bowGameRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/payment', paymentRoutes);
 
@@ -113,6 +116,9 @@ async function startServer() {
     // Initialize game service
     await gameService.initialize();
 
+    // Initialize BOW game service
+    await bowGameService.initialize();
+
     const server = app.listen(PORT, '0.0.0.0');
 
     server.on('listening', () => {
@@ -135,6 +141,7 @@ async function startServer() {
 process.on('SIGTERM', async () => {
   console.log('🔄 Shutting down gracefully...');
   gameService.cleanup();
+  bowGameService.cleanup();
   await databaseService.disconnect();
   process.exit(0);
 });
@@ -142,6 +149,7 @@ process.on('SIGTERM', async () => {
 process.on('SIGINT', async () => {
   console.log('🔄 Shutting down gracefully...');
   gameService.cleanup();
+  bowGameService.cleanup();
   await databaseService.disconnect();
   process.exit(0);
 });
