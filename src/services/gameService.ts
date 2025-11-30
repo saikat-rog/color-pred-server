@@ -652,7 +652,7 @@ export class GameService {
     gamePeriodId: number,
     winningColor: Color,
     winningNumber: Number | null,
-    bigOrSmall: BigOrSmall | null
+    winningBigOrSmall: BigOrSmall | null
   ) {
     const startTime = Date.now();
 
@@ -667,6 +667,8 @@ export class GameService {
     if (winningNumber === "zero" || winningNumber === "five") {
       winMultiplierNumber = settings.winMultiplierForNumberBetOnZeroOrFive;
     }
+
+    // console.log(`💰 Settling bets for period ${gamePeriodId} - Color: ${winningColor}, Number: ${winningNumber}, BigOrSmall: ${winningBigOrSmall}`);
 
     // Use ONE transaction for everything
     await prisma.$transaction(async (tx) => {
@@ -695,14 +697,16 @@ export class GameService {
       }
 
       // 3. Update BIG or SMALL bets (bulk)
-      await tx.$executeRawUnsafe(`
+      if (winningBigOrSmall !== null) {
+        await tx.$executeRawUnsafe(`
       UPDATE bets
       SET 
-        status = CASE WHEN big_or_small = '${bigOrSmall}' THEN 'won' ELSE 'lost' END,
-        win_amount = CASE WHEN big_or_small = '${bigOrSmall}' THEN amount * ${winMultiplierColor} ELSE 0 END,
+        status = CASE WHEN big_or_small = '${winningBigOrSmall}' THEN 'won' ELSE 'lost' END,
+        win_amount = CASE WHEN big_or_small = '${winningBigOrSmall}' THEN amount * ${winMultiplierColor} ELSE 0 END,
         settled_at = NOW()
       WHERE game_period_id = ${gamePeriodId} AND status = 'pending';
     `);
+      }
 
       // 4. Update all user balances (bulk)
       const t3 = Date.now();
@@ -1242,7 +1246,8 @@ export class GameService {
     ]);
 
     const sanitizedItems = items.map(
-      ({ totalRedBets,
+      ({
+        totalRedBets,
         totalGreenBets,
         totalPurpleBets,
         totalZeroBets,
@@ -1257,7 +1262,8 @@ export class GameService {
         totalNineBets,
         totalBigBets,
         totalSmallBets,
-        ...rest }) => rest
+        ...rest
+      }) => rest
     );
 
     return { items: sanitizedItems, total };
