@@ -49,49 +49,64 @@ export const placeBet = async (req: Request, res: Response): Promise<any> => {
     }
 
     // Validate input
-    if (!color || !["green", "purple", "red"].includes(color.toLowerCase())) {
-      if (
-        !number ||
-        ![
-          "zero",
-          "one",
-          "two",
-          "three",
-          "four",
-          "five",
-          "six",
-          "seven",
-          "eight",
-          "nine",
-        ].includes(number.toLowerCase())
-      ) {
-        if (
-          !big_or_small ||
-          !["big", "small"].includes(big_or_small.toLowerCase())
-        ) {
-          console.log("Invalid bet parameters:", { big_or_small });
-          return res.status(400).json({
-            success: false,
-            message: "Bet on invalid color or number or big_or_small.",
-          });
-        }
-      }
+    if (!color && !number && !big_or_small) {
+      return res.status(400).json({
+        success: false,
+        message: "You must bet on either color, number, or big_or_small.",
+      });
+    }
+
+    if (color && !["green", "purple", "red"].includes(color.toLowerCase())) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid color. Must be 'green', 'purple', or 'red'.",
+      });
     }
 
     if (
-      !big_or_small ||
+      number &&
+      ![
+        "zero",
+        "one",
+        "two",
+        "three",
+        "four",
+        "five",
+        "six",
+        "seven",
+        "eight",
+        "nine",
+      ].includes(number.toLowerCase())
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid number. Must be 'zero' to 'nine'.",
+      });
+    }
+
+    if (
+      big_or_small &&
       !["big", "small"].includes(big_or_small.toLowerCase())
     ) {
       return res.status(400).json({
         success: false,
-        message: "Invalid big_or_small. Must be 'big' or 'small'",
+        message: "Invalid big_or_small. Must be 'big' or 'small'.",
       });
     }
 
     if (!amount || typeof amount !== "number" || amount <= 0) {
       return res.status(400).json({
         success: false,
-        message: "Invalid amount. Must be a positive number",
+        message: "Invalid amount. Must be a positive number.",
+      });
+    }
+
+    // Ensure only one type of bet is placed
+    const betTypes = [color, number, big_or_small].filter(Boolean);
+    if (betTypes.length > 1) {
+      return res.status(400).json({
+        success: false,
+        message: "You can only bet on one of color, number, or big_or_small.",
       });
     }
 
