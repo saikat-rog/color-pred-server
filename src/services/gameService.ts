@@ -963,7 +963,7 @@ export class GameService {
       // Get the bettor's referral chain (up to 3 levels)
       const bettor = await prisma.user.findUnique({
         where: { id: bettorUserId },
-        select: { referredById: true },
+        select: { referredById: true, phoneNumber: true },
       });
 
       if (!bettor || !bettor.referredById) {
@@ -982,7 +982,7 @@ export class GameService {
       if (bettor.referredById) {
         const level1 = await prisma.user.findUnique({
           where: { id: bettor.referredById },
-          select: { referredById: true },
+          select: { referredById: true, phoneNumber: true },
         });
 
         if (level1?.referredById) {
@@ -1046,7 +1046,7 @@ export class GameService {
                 type: "referral_commission",
                 amount: commissionAmount,
                 status: "completed",
-                description: `L${commission.level} Referral commission from bet #${betId}`,
+                description: `L${commission.level} Referral commission from User ${bettor.phoneNumber}'s bet`,
                 referenceId: betId.toString(),
                 balanceBefore: referrer.balance,
                 balanceAfter: newBalance,
