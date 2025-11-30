@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { gameService } from "../services/gameService";
-import type { Color, Numbers } from "@prisma/client";
+import type { Color, Number, BigOrSmall } from "@prisma/client";
 
 /**
  * Get current game period information
@@ -39,7 +39,7 @@ export const getCurrentPeriod = async (
 export const placeBet = async (req: Request, res: Response): Promise<any> => {
   try {
     const userId = req.user?.userId;
-    const { color, amount, number } = req.body;
+    const { color, amount, number, big_or_small } = req.body;
 
     if (!userId) {
       return res.status(401).json({
@@ -65,12 +65,27 @@ export const placeBet = async (req: Request, res: Response): Promise<any> => {
           "nine",
         ].includes(number.toLowerCase())
       ) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Bet on invalid color. Must be green, purple, or red and also invalid number. Must be one, two, three, four, five, six, seven, eight, or nine",
-        });
+        if (
+          !big_or_small ||
+          !["big", "small"].includes(big_or_small.toLowerCase())
+        ) {
+          console.log("Invalid bet parameters:", { big_or_small });
+          return res.status(400).json({
+            success: false,
+            message: "Bet on invalid color or number or big_or_small.",
+          });
+        }
       }
+    }
+
+    if (
+      !big_or_small ||
+      !["big", "small"].includes(big_or_small.toLowerCase())
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid big_or_small. Must be 'big' or 'small'",
+      });
     }
 
     if (!amount || typeof amount !== "number" || amount <= 0) {
@@ -80,31 +95,11 @@ export const placeBet = async (req: Request, res: Response): Promise<any> => {
       });
     }
 
-    let numbersEnum: Numbers | null = null;
-    if (number && typeof number === "string") {
-      const normalized = number.trim().toLowerCase();
-      if (
-        [
-          "zero",
-          "one",
-          "two",
-          "three",
-          "four",
-          "five",
-          "six",
-          "seven",
-          "eight",
-          "nine",
-        ].includes(normalized)
-      ) {
-        numbersEnum = normalized as Numbers;
-      }
-    }
-
     const bet = await gameService.placeBet(
       userId,
       color ? (color.toLowerCase() as Color) : null,
-      numbersEnum,
+      number ? (number.toLowerCase() as Number) : null,
+      big_or_small ? (big_or_small.toLowerCase() as BigOrSmall) : null,
       amount
     );
 
@@ -193,7 +188,7 @@ export const getUserBetHistory = async (
     const userId = req.user?.userId;
     const limit = parseInt(req.query.limit as string) || 50;
     const offset = parseInt(req.query.offset as string) || 0;
-    
+
     if (!userId) {
       return res.status(401).json({
         success: false,
@@ -201,11 +196,15 @@ export const getUserBetHistory = async (
       });
     }
 
-    const {items: bets, total} = await gameService.getUserBetHistory(userId, limit, offset);
+    const { items: bets, total } = await gameService.getUserBetHistory(
+      userId,
+      limit,
+      offset
+    );
 
     res.json({
       success: true,
-      data: {bets, total, limit, offset},
+      data: { bets, total, limit, offset },
     });
   } catch (error: any) {
     console.error("Error fetching bet history:", error);
@@ -232,10 +231,9 @@ export const getPeriodHistory = async (
       limit,
       offset
     );
-
     res.json({
       success: true,
-      data: { periods, total, limit, offset },
+      data: { periods: periods, total, limit, offset },
     });
   } catch (error: any) {
     console.error("Error fetching period history:", error);

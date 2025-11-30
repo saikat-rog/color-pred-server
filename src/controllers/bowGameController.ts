@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { bowGameService } from "../services/bowGameService";
-import type { Color, Numbers } from "@prisma/client";
+import type { Color, Number } from "@prisma/client";
 
 /**
  * Get current BOW game period information
@@ -80,7 +80,7 @@ export const placeBet = async (req: Request, res: Response): Promise<any> => {
       });
     }
 
-    let numbersEnum: Numbers | null = null;
+    let numbersEnum: Number | null = null;
     if (number && typeof number === "string") {
       const normalized = number.trim().toLowerCase();
       if (
@@ -97,7 +97,7 @@ export const placeBet = async (req: Request, res: Response): Promise<any> => {
           "nine",
         ].includes(normalized)
       ) {
-        numbersEnum = normalized as Numbers;
+        numbersEnum = normalized as Number;
       }
     }
 

@@ -159,7 +159,7 @@ enum Color {
   red
 }
 
-enum Numbers {
+enum Number {
   zero
   one
   two
@@ -170,6 +170,11 @@ enum Numbers {
   seven
   eight
   nine
+}
+
+enum BigOrSmall {
+  big
+  small
 }
 
 // Game settings model for configurable parameters
@@ -203,7 +208,8 @@ model GamePeriod {
   bettingEndTime  DateTime  @map("betting_end_time") // endTime - 30 seconds
   status          String    @default("not_started") // not_started, active, betting_closed, completed
   winningColor    Color?    @map("winning_color")
-  winningNumber   Numbers?  @map("winning_number")
+  winningNumber   Number?  @map("winning_number")
+  winningBigOrSmall BigOrSmall? @map("winning_big_or_small")
   totalGreenBets  Float     @default(0) @map("total_green_bets")
   totalPurpleBets Float     @default(0) @map("total_purple_bets")
   totalRedBets    Float     @default(0) @map("total_red_bets")
@@ -217,6 +223,8 @@ model GamePeriod {
   totalSevenBets  Float     @default(0) @map("total_seven_bets")
   totalEightBets  Float     @default(0) @map("total_eight_bets")
   totalNineBets   Float     @default(0) @map("total_nine_bets")
+  totalBigBets    Float     @default(0) @map("total_big_bets")
+  totalSmallBets  Float     @default(0) @map("total_small_bets")
   createdAt       DateTime  @default(now()) @map("created_at")
   completedAt     DateTime? @map("completed_at")
 
@@ -236,7 +244,8 @@ model Bet {
   periodId        String     @map("period_id")
   gamePeriodId    Int        @map("game_period_id")
   color           Color?
-  number          Numbers?
+  number          Number?
+  bigOrSmall      BigOrSmall? @map("big_or_small")
   amount          Float
   status          String     @default("pending") // pending, won, lost
   winAmount       Float?     @map("win_amount")
@@ -339,7 +348,7 @@ model BowGamePeriod {
   bettingEndTime  DateTime  @map("betting_end_time")
   status          String    @default("not_started") // not_started, active, betting_closed, completed
   winningColor    Color?    @map("winning_color")
-  winningNumber   Numbers?  @map("winning_number")
+  winningNumber   Number?  @map("winning_number")
   totalGreenBets  Float     @default(0) @map("total_green_bets")
   totalPurpleBets Float     @default(0) @map("total_purple_bets")
   totalRedBets    Float     @default(0) @map("total_red_bets")
@@ -372,7 +381,7 @@ model BowBet {
   periodId        String     @map("period_id")
   gamePeriodId    Int        @map("game_period_id")
   color           Color?
-  number          Numbers?
+  number          Number?
   amount          Float
   status          String     @default("pending") // pending, won, lost
   winAmount       Float?     @map("win_amount")

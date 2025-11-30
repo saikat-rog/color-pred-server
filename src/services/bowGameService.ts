@@ -1,5 +1,5 @@
 import { PrismaClient, Color } from "@prisma/client";
-import type { Numbers } from "@prisma/client";
+import type { Number } from "@prisma/client";
 import { getIstDate } from "../utils/getIstDate";
 
 const prisma = new PrismaClient({
@@ -485,19 +485,19 @@ export class BowGameService {
     ];
 
     const redNumberTotals = [
-      { number: "zero" as Numbers, total: period.totalZeroBets ?? 0 },
-      { number: "two" as Numbers, total: period.totalTwoBets ?? 0 },
-      { number: "four" as Numbers, total: period.totalFourBets ?? 0 },
-      { number: "six" as Numbers, total: period.totalSixBets ?? 0 },
-      { number: "eight" as Numbers, total: period.totalEightBets ?? 0 },
+      { number: "zero" as Number, total: period.totalZeroBets ?? 0 },
+      { number: "two" as Number, total: period.totalTwoBets ?? 0 },
+      { number: "four" as Number, total: period.totalFourBets ?? 0 },
+      { number: "six" as Number, total: period.totalSixBets ?? 0 },
+      { number: "eight" as Number, total: period.totalEightBets ?? 0 },
     ];
 
     const greenNumberTotals = [
-      { number: "one" as Numbers, total: period.totalOneBets ?? 0 },
-      { number: "three" as Numbers, total: period.totalThreeBets ?? 0 },
-      { number: "five" as Numbers, total: period.totalFiveBets ?? 0 },
-      { number: "seven" as Numbers, total: period.totalSevenBets ?? 0 },
-      { number: "nine" as Numbers, total: period.totalNineBets ?? 0 },
+      { number: "one" as Number, total: period.totalOneBets ?? 0 },
+      { number: "three" as Number, total: period.totalThreeBets ?? 0 },
+      { number: "five" as Number, total: period.totalFiveBets ?? 0 },
+      { number: "seven" as Number, total: period.totalSevenBets ?? 0 },
+      { number: "nine" as Number, total: period.totalNineBets ?? 0 },
     ];
 
     // Find the color with the lowest total, but never allow purple to win
@@ -528,7 +528,7 @@ export class BowGameService {
     }
 
     // Use greenNumberTotals or redNumberTotals based on winning color
-    let numberTotals: { number: Numbers; total: number }[] = [];
+    let numberTotals: { number: Number; total: number }[] = [];
     const safeWinningColorObj = winningColorObj || { color: "red", total: 0 };
     if (safeWinningColorObj.color === "green") {
       numberTotals = greenNumberTotals;
@@ -601,7 +601,7 @@ export class BowGameService {
   private async settleBets(
     gamePeriodId: number,
     winningColor: Color,
-    winningNumber: Numbers | null
+    winningNumber: Number | null
   ) {
     const settings = await prisma.bowGameSettings.findFirst();
     if (!settings) return;
@@ -670,7 +670,7 @@ export class BowGameService {
   async placeBet(
     userId: number,
     color: Color | null,
-    number: Numbers | null,
+    number: Number | null,
     amount: number
   ) {
     // Accept only color or number, not both or neither

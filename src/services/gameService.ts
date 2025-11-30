@@ -1,5 +1,4 @@
-import { PrismaClient, Color } from "@prisma/client";
-import type { Numbers } from "@prisma/client";
+import { PrismaClient, Color, Number, BigOrSmall } from "@prisma/client";
 import { getIstDate } from "../utils/getIstDate";
 
 const prisma = new PrismaClient({
@@ -481,29 +480,31 @@ export class GameService {
     ];
 
     const redNumberTotals = [
-      { number: "zero" as Numbers, total: period.totalZeroBets ?? 0 },
-      // { number: "one" as Numbers, total: period.totalOneBets ?? 0 },
-      { number: "two" as Numbers, total: period.totalTwoBets ?? 0 },
-      // { number: "three" as Numbers, total: period.totalThreeBets ?? 0 },
-      { number: "four" as Numbers, total: period.totalFourBets ?? 0 },
-      // { number: "five" as Numbers, total: period.totalFiveBets ?? 0 },
-      { number: "six" as Numbers, total: period.totalSixBets ?? 0 },
-      // { number: "seven" as Numbers, total: period.totalSevenBets ?? 0 },
-      { number: "eight" as Numbers, total: period.totalEightBets ?? 0 },
-      // { number: "nine" as Numbers, total: period.totalNineBets ?? 0 },
+      { number: "zero" as Number, total: period.totalZeroBets ?? 0 },
+      // { number: "one" as Number, total: period.totalOneBets ?? 0 },
+      { number: "two" as Number, total: period.totalTwoBets ?? 0 },
+      // { number: "three" as Number, total: period.totalThreeBets ?? 0 },
+      { number: "four" as Number, total: period.totalFourBets ?? 0 },
+      // { number: "five" as Number, total: period.totalFiveBets ?? 0 },
+      { number: "six" as Number, total: period.totalSixBets ?? 0 },
+      // { number: "seven" as Number, total: period.totalSevenBets ?? 0 },
+      { number: "eight" as Number, total: period.totalEightBets ?? 0 },
+      // { number: "nine" as Number, total: period.totalNineBets ?? 0 },
     ];
 
+    const bigTotals = period.totalBigBets ?? 0;
+    const smallTotals = period.totalSmallBets ?? 0;
+
     const greenNumberTotals = [
-      // { number: "zero" as Numbers, total: period.totalZeroBets ?? 0 },
-      { number: "one" as Numbers, total: period.totalOneBets ?? 0 },
-      // { number: "two" as Numbers, total: period.totalTwoBets ?? 0 },
-      { number: "three" as Numbers, total: period.totalThreeBets ?? 0 },
-      // { number: "four" as Numbers, total: period.totalFourBets ?? 0 },
-      { number: "five" as Numbers, total: period.totalFiveBets ?? 0 },
-      // { number: "six" as Numbers, total: period.totalSixBets ?? 0 },
-      { number: "seven" as Numbers, total: period.totalSevenBets ?? 0 },
-      // { number: "eight" as Numbers, total: period.totalEightBets ?? 0 },
-      { number: "nine" as Numbers, total: period.totalNineBets ?? 0 },
+      { number: "one" as Number, total: period.totalOneBets ?? 0 },
+      // { number: "two" as Number, total: period.totalTwoBets ?? 0 },
+      { number: "three" as Number, total: period.totalThreeBets ?? 0 },
+      // { number: "four" as Number, total: period.totalFourBets ?? 0 },
+      { number: "five" as Number, total: period.totalFiveBets ?? 0 },
+      // { number: "six" as Number, total: period.totalSixBets ?? 0 },
+      { number: "seven" as Number, total: period.totalSevenBets ?? 0 },
+      // { number: "eight" as Number, total: period.totalEightBets ?? 0 },
+      { number: "nine" as Number, total: period.totalNineBets ?? 0 },
     ];
 
     // Find the color with the lowest total, but never allow purple to win
@@ -535,13 +536,45 @@ export class GameService {
     }
 
     // Use greenNumberTotals or redNumberTotals based on winning color
-    let numberTotals: { number: Numbers; total: number }[] = [];
+    let numberTotals: { number: Number; total: number }[] = [];
     // Ensure winningColorObj is always defined
     const safeWinningColorObj = winningColorObj || { color: "red", total: 0 };
     if (safeWinningColorObj.color === "green") {
-      numberTotals = greenNumberTotals;
+      bigTotals >= smallTotals
+        ? (numberTotals = greenNumberTotals.filter(
+            (item) =>
+              item.number !== "five" &&
+              item.number !== "six" &&
+              item.number !== "seven" &&
+              item.number !== "eight" &&
+              item.number !== "nine"
+          ))
+        : (numberTotals = greenNumberTotals.filter(
+            (item) =>
+              item.number !== "zero" &&
+              item.number !== "one" &&
+              item.number !== "two" &&
+              item.number !== "three" &&
+              item.number !== "four"
+          ));
     } else {
-      numberTotals = redNumberTotals;
+      bigTotals >= smallTotals
+        ? (numberTotals = redNumberTotals.filter(
+            (item) =>
+              item.number !== "five" &&
+              item.number !== "six" &&
+              item.number !== "seven" &&
+              item.number !== "eight" &&
+              item.number !== "nine"
+          ))
+        : (numberTotals = redNumberTotals.filter(
+            (item) =>
+              item.number !== "zero" &&
+              item.number !== "one" &&
+              item.number !== "two" &&
+              item.number !== "three" &&
+              item.number !== "four"
+          ));
     }
 
     let sortedNumberTotals = [...numberTotals].sort(
@@ -582,6 +615,7 @@ export class GameService {
 
     const winningColor = safeWinningColorObj.color;
     const winningNumber = winningNumberObj ? winningNumberObj.number : null;
+    const winningBigOrSmall = bigTotals <= smallTotals ? "big" : "small";
 
     // Update period with winning color IMMEDIATELY so frontend sees it
     await prisma.gamePeriod.update({
@@ -590,6 +624,7 @@ export class GameService {
         status: "completed",
         winningColor,
         winningNumber,
+        winningBigOrSmall,
         completedAt: getIstDate(),
       },
     });
@@ -602,7 +637,12 @@ export class GameService {
     await this.startOrResumePeriod();
 
     // Process all bets AFTER starting next period (non-blocking for period transition)
-    await this.settleBets(period.id, winningColor, winningNumber);
+    await this.settleBets(
+      period.id,
+      winningColor,
+      winningNumber,
+      winningBigOrSmall
+    );
   }
 
   /**
@@ -611,7 +651,8 @@ export class GameService {
   private async settleBets(
     gamePeriodId: number,
     winningColor: Color,
-    winningNumber: Numbers | null
+    winningNumber: Number | null,
+    bigOrSmall: BigOrSmall | null
   ) {
     const startTime = Date.now();
 
@@ -629,9 +670,7 @@ export class GameService {
 
     // Use ONE transaction for everything
     await prisma.$transaction(async (tx) => {
-
       // 1. Update COLOR bets (bulk)
-      // const t1 = Date.now();
       await tx.$executeRawUnsafe(`
       UPDATE bets
       SET 
@@ -655,7 +694,17 @@ export class GameService {
         // console.log(`⏱️ Update number bets: ${Date.now() - t2}ms`);
       }
 
-      // 3. Update all user balances (bulk)
+      // 3. Update BIG or SMALL bets (bulk)
+      await tx.$executeRawUnsafe(`
+      UPDATE bets
+      SET 
+        status = CASE WHEN big_or_small = '${bigOrSmall}' THEN 'won' ELSE 'lost' END,
+        win_amount = CASE WHEN big_or_small = '${bigOrSmall}' THEN amount * ${winMultiplierColor} ELSE 0 END,
+        settled_at = NOW()
+      WHERE game_period_id = ${gamePeriodId} AND status = 'pending';
+    `);
+
+      // 4. Update all user balances (bulk)
       const t3 = Date.now();
       await tx.$executeRawUnsafe(`
       UPDATE users u
@@ -670,7 +719,7 @@ export class GameService {
     `);
       // console.log(`⏱️ Update user balances: ${Date.now() - t3}ms`);
 
-      // 4. Insert transactions (bulk)
+      // 5. Insert transactions (bulk)
       const t4 = Date.now();
       await tx.$executeRawUnsafe(`
       INSERT INTO transactions (user_id, amount, type, status, created_at)
@@ -702,19 +751,22 @@ export class GameService {
   async placeBet(
     userId: number,
     color: Color | null,
-    number: Numbers | null,
+    number: Number | null,
+    bigOrSmall: BigOrSmall | null,
     amount: number
   ) {
     // Accept only color or number, not both or neither
     const hasColor = !!color;
     const hasNumber = !!number;
-    if (hasColor && hasNumber) {
-      throw new Error("You must bet on either color or number, not both.");
-    }
-    if (!hasColor && !hasNumber) {
+    const hasBigOrSmall = !!bigOrSmall;
+
+    if ([hasColor, hasNumber, hasBigOrSmall].filter(Boolean).length > 1) {
       throw new Error(
-        "You must bet on either color or number. Both cannot be null."
+        "You must bet on only one of color, number, or bigOrSmall."
       );
+    }
+    if ([hasColor, hasNumber, hasBigOrSmall].filter(Boolean).length === 0) {
+      throw new Error("You must bet on either color, number, or bigOrSmall.");
     }
 
     // Validate betting is open
@@ -783,6 +835,10 @@ export class GameService {
       betDescription = `Bet on number ${number} - Period ${period.periodId}`;
     }
 
+    if (bigOrSmall) {
+      betDescription = `Bet on ${bigOrSmall} - Period ${period.periodId}`;
+    }
+
     // Create transaction record for debit
     await prisma.transaction.create({
       data: {
@@ -804,6 +860,7 @@ export class GameService {
         gamePeriodId: period.id,
         color: hasColor ? color : (null as any),
         number: hasNumber ? number : (null as any),
+        bigOrSmall: hasBigOrSmall ? bigOrSmall : (null as any),
         amount,
         status: "pending",
       },
@@ -812,12 +869,14 @@ export class GameService {
     // Update color totals and number totals immediately after a bet
     let colorField: string | null = null;
     let numberField: string | null = null;
+    const bigSmallField =
+      bigOrSmall === "big" ? "totalBigBets" : "totalSmallBets";
 
-    if (hasColor && color) {
+    if (hasColor) {
       if (color === "green") colorField = "totalGreenBets";
       else if (color === "purple") colorField = "totalPurpleBets";
       else if (color === "red") colorField = "totalRedBets";
-    } else if (hasNumber && number) {
+    } else if (hasNumber) {
       if (number === "zero") {
         colorField = "totalRedBets";
         numberField = "totalZeroBets";
@@ -866,6 +925,15 @@ export class GameService {
         where: { id: period.id },
         data: {
           [numberField]: { increment: amount },
+        },
+      });
+    }
+
+    if (bigSmallField) {
+      await prisma.gamePeriod.update({
+        where: { id: period.id },
+        data: {
+          [bigSmallField]: { increment: amount },
         },
       });
     }
@@ -1041,6 +1109,8 @@ export class GameService {
             totalSevenBets,
             totalEightBets,
             totalNineBets,
+            totalBigBets,
+            totalSmallBets,
             ...filteredCp
           } = cp;
 
@@ -1171,7 +1241,26 @@ export class GameService {
       prisma.gamePeriod.count({ where: { status: "completed" } }),
     ]);
 
-    return { items, total };
+    const sanitizedItems = items.map(
+      ({ totalRedBets,
+        totalGreenBets,
+        totalPurpleBets,
+        totalZeroBets,
+        totalOneBets,
+        totalTwoBets,
+        totalThreeBets,
+        totalFourBets,
+        totalFiveBets,
+        totalSixBets,
+        totalSevenBets,
+        totalEightBets,
+        totalNineBets,
+        totalBigBets,
+        totalSmallBets,
+        ...rest }) => rest
+    );
+
+    return { items: sanitizedItems, total };
   }
 
   /**
