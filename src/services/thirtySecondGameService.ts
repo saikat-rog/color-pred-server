@@ -1,4 +1,4 @@
-import { PrismaClient, Color } from "@prisma/client";
+import { PrismaClient, Color, BigOrSmall } from "@prisma/client";
 import type { Number } from "@prisma/client";
 import { getIstDate } from "../utils/getIstDate";
 
@@ -6,18 +6,18 @@ const prisma = new PrismaClient({
   log: ["error", "warn"],
 });
 
-export class BowGameService {
+export class ThirtySecondGameService {
   private currentPeriod: any = null;
   private periodTimer: NodeJS.Timeout | null = null;
   private midnightTimer: NodeJS.Timeout | null = null;
 
   /**
-   * Initialize the BOW game service and start the period cycle
+   * Initialize the 30-second game service and start the period cycle
    */
   async initialize() {
-    console.log("🎡 Initializing BOW Game Service...");
+    console.log("⚡ Initializing Thirty Second Game Service...");
 
-    // Ensure BOW game settings exist
+    // Ensure game settings exist
     await this.ensureGameSettings();
 
     // Generate all periods for today
@@ -57,13 +57,13 @@ export class BowGameService {
     const timeUntilGeneration = beforeMidnight.getTime() - now.getTime();
 
     console.log(
-      `⏰ [BOW] Scheduling next day period generation in ${Math.round(
+      `⏰ [30s] Scheduling next day period generation in ${Math.round(
         timeUntilGeneration / 1000 / 60
       )} minutes (at 23:59:00)`
     );
 
     this.midnightTimer = setTimeout(async () => {
-      console.log("🌙 [BOW] 23:59:00 reached - generating tomorrow's periods");
+      console.log("🌙 [30s] 23:59:00 reached - generating tomorrow's periods");
       await this.generatePeriodsForTomorrow();
       // Reschedule for next day
       this.scheduleMidnightTask();
@@ -77,13 +77,12 @@ export class BowGameService {
     const now = getIstDate();
     const settings = await prisma.gameSettings.findFirst();
     if (!settings) {
-      throw new Error("BOW Game settings not found");
+      throw new Error("Game settings not found");
     }
 
-    const periodDurationSeconds = settings.bowPeriodDuration;
+    const periodDurationSeconds = settings.thirtySecondPeriodDuration;
     const periodDurationMs = periodDurationSeconds * 1000;
-    const bettingDurationMs = settings.bowBettingDuration * 1000;
-    const periodDurationMinutes = periodDurationSeconds / 60;
+    const bettingDurationMs = settings.thirtySecondBettingDuration * 1000;
 
     // Get start of tomorrow (00:00:00 IST)
     const tomorrowStart = new Date(
@@ -111,13 +110,13 @@ export class BowGameService {
       )
     );
 
-    // Calculate total periods in a day
+    // Calculate total periods in a day (2880 periods for 30-second intervals)
     const totalPeriodsInDay = Math.floor(
       (24 * 60 * 60) / periodDurationSeconds
     );
 
     // Fetch all existing periods for tomorrow in ONE query
-    const existingPeriods = await prisma.bowGamePeriod.findMany({
+    const existingPeriods = await prisma.thirtySecondGamePeriod.findMany({
       where: {
         startTime: {
           gte: tomorrowStart,
@@ -138,10 +137,7 @@ export class BowGameService {
       const bettingEndTime = new Date(
         periodStart.getTime() + bettingDurationMs
       );
-      const periodId = this.generatePeriodId(
-        periodStart,
-        periodDurationMinutes
-      );
+      const periodId = this.generatePeriodId(periodStart, periodDurationSeconds);
 
       // Check in-memory set instead of database query
       if (!existingPeriodIds.has(periodId)) {
@@ -156,15 +152,15 @@ export class BowGameService {
     }
 
     if (periodsToCreate.length > 0) {
-      await prisma.bowGamePeriod.createMany({
+      await prisma.thirtySecondGamePeriod.createMany({
         data: periodsToCreate,
         skipDuplicates: true,
       });
       console.log(
-        `📅 [BOW] Pre-generated ${periodsToCreate.length} periods for tomorrow`
+        `📅 [30s] Pre-generated ${periodsToCreate.length} periods for tomorrow`
       );
     } else {
-      console.log("✅ [BOW] All periods for tomorrow already exist");
+      console.log("✅ [30s] All periods for tomorrow already exist");
     }
   }
 
@@ -175,13 +171,12 @@ export class BowGameService {
     const now = getIstDate();
     const settings = await prisma.gameSettings.findFirst();
     if (!settings) {
-      throw new Error("BOW Game settings not found");
+      throw new Error("Game settings not found");
     }
 
-    const periodDurationSeconds = settings.bowPeriodDuration;
+    const periodDurationSeconds = settings.thirtySecondPeriodDuration;
     const periodDurationMs = periodDurationSeconds * 1000;
-    const bettingDurationMs = settings.bowBettingDuration * 1000;
-    const periodDurationMinutes = periodDurationSeconds / 60;
+    const bettingDurationMs = settings.thirtySecondBettingDuration * 1000;
 
     // Get start of today (00:00:00 IST)
     const dayStart = new Date(
@@ -209,13 +204,13 @@ export class BowGameService {
       )
     );
 
-    // Calculate total periods in a day
+    // Calculate total periods in a day (2880 periods for 30-second intervals)
     const totalPeriodsInDay = Math.floor(
       (24 * 60 * 60) / periodDurationSeconds
     );
 
     // Fetch all existing periods for today in ONE query
-    const existingPeriods = await prisma.bowGamePeriod.findMany({
+    const existingPeriods = await prisma.thirtySecondGamePeriod.findMany({
       where: {
         startTime: {
           gte: dayStart,
@@ -234,10 +229,7 @@ export class BowGameService {
       const bettingEndTime = new Date(
         periodStart.getTime() + bettingDurationMs
       );
-      const periodId = this.generatePeriodId(
-        periodStart,
-        periodDurationMinutes
-      );
+      const periodId = this.generatePeriodId(periodStart, periodDurationSeconds);
 
       // Check in-memory set instead of database query
       if (!existingPeriodIds.has(periodId)) {
@@ -252,59 +244,60 @@ export class BowGameService {
     }
 
     if (periodsToCreate.length > 0) {
-      await prisma.bowGamePeriod.createMany({
+      await prisma.thirtySecondGamePeriod.createMany({
         data: periodsToCreate,
         skipDuplicates: true,
       });
       console.log(
-        `📅 [BOW] Pre-generated ${periodsToCreate.length} periods for today`
+        `📅 [30s] Pre-generated ${periodsToCreate.length} periods for today`
       );
     } else {
-      console.log("✅ [BOW] All periods for today already exist");
+      console.log("✅ [30s] All periods for today already exist");
     }
   }
 
   /**
-   * Ensure BOW game settings exist in the database
+   * Ensure game settings exist in the database
    */
   private async ensureGameSettings() {
     const settings = await prisma.gameSettings.findFirst();
     if (!settings) {
       await prisma.gameSettings.create({
         data: {
-          bowPeriodDuration: 60, // 1 minute for BOW game
-          bowBettingDuration: 55, // 55 seconds
+          thirtySecondPeriodDuration: 30, // 30 seconds
+          thirtySecondBettingDuration: 25, // 25 seconds
           winMultiplier: 1.8,
           minBetAmount: 10,
           maxBetAmount: 10000,
-          referralCommissionPercentage1: 1.0,
-          referralCommissionPercentage2: 0.5,
-          referralCommissionPercentage3: 0.25,
-          referralSignupBonusInRs: 1.0,
-          minRechargeForBonus: 500.0,
+          referralCommissionPercentage1: 1.0, // Level 1: 1%
+          referralCommissionPercentage2: 0.5, // Level 2: 0.5%
+          referralCommissionPercentage3: 0.25, // Level 3: 0.25%
+          referralSignupBonusInRs: 1.0, // 1 Rs bonus
+          minRechargeForBonus: 500.0, // Minimum 500 Rs recharge
           minRechargeAmount: 200.0,
           maxRechargeAmount: 50000.0,
         },
       });
-      console.log("✅ [BOW] Game settings initialized");
+      console.log("✅ Game settings initialized");
     }
   }
 
   /**
-   * Generate period ID in format YYYYMMDD001
+   * Generate period ID in format YYYYMMDD0001 (4 digits for 30-second periods - up to 2880 per day)
    */
-  private generatePeriodId(date: Date, periodDurationMinutes: number): string {
+  private generatePeriodId(date: Date, periodDurationSeconds: number): string {
     // Use UTC methods since date is already shifted by IST offset
     const year = date.getUTCFullYear();
     const month = String(date.getUTCMonth() + 1).padStart(2, "0");
     const day = String(date.getUTCDate()).padStart(2, "0");
 
-    // Calculate period number for the day based on dynamic period duration
-    const minutesFromMidnight = date.getUTCHours() * 60 + date.getUTCMinutes();
-    const periodNumber =
-      Math.floor(minutesFromMidnight / periodDurationMinutes) + 1;
+    // Calculate period number for the day based on seconds from midnight
+    const secondsFromMidnight =
+      date.getUTCHours() * 3600 + date.getUTCMinutes() * 60 + date.getUTCSeconds();
+    const periodNumber = Math.floor(secondsFromMidnight / periodDurationSeconds) + 1;
 
-    return `${year}${month}${day}${String(periodNumber).padStart(3, "0")}`;
+    // Use 4 digits since 30-second periods = 2880 periods per day
+    return `${year}${month}${day}${String(periodNumber).padStart(4, "0")}`;
   }
 
   /**
@@ -348,38 +341,38 @@ export class BowGameService {
     // Fetch game settings for dynamic durations
     const settings = await prisma.gameSettings.findFirst();
     if (!settings) {
-      throw new Error("BOW Game settings not found");
+      throw new Error("Game settings not found");
     }
 
-    const periodDurationMinutes = settings.bowPeriodDuration / 60;
+    const periodDurationSeconds = settings.thirtySecondPeriodDuration;
 
     // 1️⃣ get today's period slot based on dynamic duration
     const { periodIndex, periodStart } = this.getPeriodStartFromFixedSlots(
       now,
-      settings.bowPeriodDuration
+      periodDurationSeconds
     );
 
     // 2️⃣ generate correct periodId
-    const periodId = this.generatePeriodId(periodStart, periodDurationMinutes);
+    const periodId = this.generatePeriodId(periodStart, periodDurationSeconds);
 
     // 3️⃣ Find the pre-generated period and activate it if not started
-    let period = await prisma.bowGamePeriod.findUnique({
+    let period = await prisma.thirtySecondGamePeriod.findUnique({
       where: { periodId },
     });
 
     // Fallback: If period doesn't exist, create it
     if (!period) {
       console.warn(
-        `⚠️ [BOW] Period ${periodId} not pre-generated. Creating on-demand...`
+        `⚠️ [30s] Period ${periodId} not pre-generated. Creating on-demand...`
       );
-      const periodDurationMs = settings.bowPeriodDuration * 1000;
-      const bettingDurationMs = settings.bowBettingDuration * 1000;
+      const periodDurationMs = periodDurationSeconds * 1000;
+      const bettingDurationMs = settings.thirtySecondBettingDuration * 1000;
       const endTime = new Date(periodStart.getTime() + periodDurationMs);
       const bettingEndTime = new Date(
         periodStart.getTime() + bettingDurationMs
       );
 
-      period = await prisma.bowGamePeriod.create({
+      period = await prisma.thirtySecondGamePeriod.create({
         data: {
           periodId,
           startTime: periodStart,
@@ -388,22 +381,22 @@ export class BowGameService {
           status: "active",
         },
       });
-      console.log("🆘 [BOW] Created period on-demand:", periodId);
+      console.log("🆘 [30s] Created period on-demand:", periodId);
     }
 
     // If period is not_started, activate it
     if (period.status === "not_started") {
-      period = await prisma.bowGamePeriod.update({
+      period = await prisma.thirtySecondGamePeriod.update({
         where: { periodId },
         data: { status: "active" },
       });
-      console.log("🆕 [BOW] Activated period:", periodId);
+      console.log("🆕 [30s] Activated period:", periodId);
     } else if (period.status === "active") {
-      console.log("♻️ [BOW] Resumed active period:", periodId);
+      console.log("♻️ [30s] Resumed active period:", periodId);
     } else if (period.status === "betting_closed") {
-      console.log("🔒 [BOW] Resumed betting-closed period:", periodId);
+      console.log("🔒 [30s] Resumed betting-closed period:", periodId);
     } else {
-      console.log("✅ [BOW] Period already completed:", periodId);
+      console.log("✅ [30s] Period already completed:", periodId);
     }
 
     this.currentPeriod = period;
@@ -437,7 +430,7 @@ export class BowGameService {
     }, delay);
 
     console.log(
-      `⏰ [BOW] Period will end in ${Math.round(delay / 1000)} seconds`
+      `⏰ [30s] Period will end in ${Math.round(delay / 1000)} seconds`
     );
   }
 
@@ -447,13 +440,13 @@ export class BowGameService {
   private async lockBetting() {
     if (!this.currentPeriod) return;
 
-    await prisma.bowGamePeriod.update({
+    await prisma.thirtySecondGamePeriod.update({
       where: { id: this.currentPeriod.id },
       data: { status: "betting_closed" },
     });
 
     console.log(
-      `🔒 [BOW] Betting locked for period: ${this.currentPeriod.periodId}`
+      `🔒 [30s] Betting locked for period: ${this.currentPeriod.periodId}`
     );
   }
 
@@ -463,10 +456,10 @@ export class BowGameService {
   private async completePeriod() {
     if (!this.currentPeriod) return;
 
-    console.log(`🏁 [BOW] Completing period: ${this.currentPeriod.periodId}`);
+    console.log(`🏁 [30s] Completing period: ${this.currentPeriod.periodId}`);
 
     // Get period with latest color totals from DB
-    const period = await prisma.bowGamePeriod.findUnique({
+    const period = await prisma.thirtySecondGamePeriod.findUnique({
       where: { id: this.currentPeriod.id },
     });
 
@@ -491,6 +484,9 @@ export class BowGameService {
       { number: "six" as Number, total: period.totalSixBets ?? 0 },
       { number: "eight" as Number, total: period.totalEightBets ?? 0 },
     ];
+
+    const bigTotals = period.totalBigBets ?? 0;
+    const smallTotals = period.totalSmallBets ?? 0;
 
     const greenNumberTotals = [
       { number: "one" as Number, total: period.totalOneBets ?? 0 },
@@ -531,9 +527,41 @@ export class BowGameService {
     let numberTotals: { number: Number; total: number }[] = [];
     const safeWinningColorObj = winningColorObj || { color: "red", total: 0 };
     if (safeWinningColorObj.color === "green") {
-      numberTotals = greenNumberTotals;
+      bigTotals >= smallTotals
+        ? (numberTotals = greenNumberTotals.filter(
+            (item) =>
+              item.number !== "five" &&
+              item.number !== "six" &&
+              item.number !== "seven" &&
+              item.number !== "eight" &&
+              item.number !== "nine"
+          ))
+        : (numberTotals = greenNumberTotals.filter(
+            (item) =>
+              item.number !== "zero" &&
+              item.number !== "one" &&
+              item.number !== "two" &&
+              item.number !== "three" &&
+              item.number !== "four"
+          ));
     } else {
-      numberTotals = redNumberTotals;
+      bigTotals >= smallTotals
+        ? (numberTotals = redNumberTotals.filter(
+            (item) =>
+              item.number !== "five" &&
+              item.number !== "six" &&
+              item.number !== "seven" &&
+              item.number !== "eight" &&
+              item.number !== "nine"
+          ))
+        : (numberTotals = redNumberTotals.filter(
+            (item) =>
+              item.number !== "zero" &&
+              item.number !== "one" &&
+              item.number !== "two" &&
+              item.number !== "three" &&
+              item.number !== "four"
+          ));
     }
 
     let sortedNumberTotals = [...numberTotals].sort(
@@ -572,27 +600,29 @@ export class BowGameService {
 
     const winningColor = safeWinningColorObj.color;
     const winningNumber = winningNumberObj ? winningNumberObj.number : null;
+    const winningBigOrSmall = bigTotals <= smallTotals ? "big" : "small";
 
     // Update period with winning color
-    await prisma.bowGamePeriod.update({
+    await prisma.thirtySecondGamePeriod.update({
       where: { id: period.id },
       data: {
         status: "completed",
         winningColor,
         winningNumber,
+        winningBigOrSmall,
         completedAt: getIstDate(),
       },
     });
 
     console.log(
-      `🏆 [BOW] Period ${period.periodId} completed. Winning color: ${winningColor}, Number: ${winningNumber}`
+      `🏆 [30s] Period ${period.periodId} completed. Winning color: ${winningColor}, Number: ${winningNumber}`
     );
 
     // Start next period FIRST
     await this.startOrResumePeriod();
 
     // Process all bets AFTER starting next period
-    await this.settleBets(period.id, winningColor, winningNumber);
+    await this.settleBets(period.id, winningColor, winningNumber, winningBigOrSmall);
   }
 
   /**
@@ -601,7 +631,8 @@ export class BowGameService {
   private async settleBets(
     gamePeriodId: number,
     winningColor: Color,
-    winningNumber: Number | null
+    winningNumber: Number | null,
+    winningBigOrSmall: BigOrSmall | null
   ) {
     const settings = await prisma.gameSettings.findFirst();
     if (!settings) return;
@@ -617,7 +648,7 @@ export class BowGameService {
     await prisma.$transaction(async (tx) => {
       // 1. Update COLOR bets (bulk)
       await tx.$executeRawUnsafe(`
-      UPDATE bow_bets
+      UPDATE thirty_second_bets
       SET 
         status = CASE WHEN color = '${winningColor}' AND number IS NULL THEN 'won' ELSE 'lost' END,
         win_amount = CASE WHEN color = '${winningColor}' AND number IS NULL THEN amount * ${winMultiplierColor} ELSE 0 END,
@@ -628,7 +659,7 @@ export class BowGameService {
       // 2. Update NUMBER bets (bulk)
       if (winningNumber !== null) {
         await tx.$executeRawUnsafe(`
-        UPDATE bow_bets
+        UPDATE thirty_second_bets
         SET 
           status = CASE WHEN number = '${winningNumber}' THEN 'won' ELSE status END,
           win_amount = CASE WHEN number = '${winningNumber}' THEN amount * ${winMultiplierNumber} ELSE win_amount END
@@ -636,20 +667,31 @@ export class BowGameService {
       `);
       }
 
-      // 3. Update all user balances (bulk)
+      // 3. Update BIG/SMALL bets (bulk)
+      if (winningBigOrSmall !== null) {
+        await tx.$executeRawUnsafe(`
+        UPDATE thirty_second_bets
+        SET 
+          status = CASE WHEN big_or_small = '${winningBigOrSmall}' THEN 'won' ELSE status END,
+          win_amount = CASE WHEN big_or_small = '${winningBigOrSmall}' THEN amount * ${winMultiplierColor} ELSE win_amount END
+        WHERE game_period_id = ${gamePeriodId} AND status = 'lost';
+      `);
+      }
+
+      // 4. Update all user balances (bulk)
       await tx.$executeRawUnsafe(`
       UPDATE users u
       SET balance = u.balance + t.total_win
       FROM (
         SELECT user_id, SUM(win_amount) AS total_win
-        FROM bow_bets
+        FROM thirty_second_bets
         WHERE game_period_id = ${gamePeriodId} AND status = 'won'
         GROUP BY user_id
       ) t
       WHERE u.id = t.user_id;
     `);
 
-      // 4. Insert transactions (bulk)
+      // 5. Insert transactions (bulk)
       await tx.$executeRawUnsafe(`
       INSERT INTO transactions (user_id, amount, type, status, created_at)
       SELECT 
@@ -658,7 +700,7 @@ export class BowGameService {
         'bet_win_credit',
         'completed',
         NOW()
-      FROM bow_bets
+      FROM thirty_second_bets
       WHERE game_period_id = ${gamePeriodId} AND status = 'won';
     `);
     });
@@ -671,18 +713,19 @@ export class BowGameService {
     userId: number,
     color: Color | null,
     number: Number | null,
+    bigOrSmall: BigOrSmall | null,
     amount: number
   ) {
-    // Accept only color or number, not both or neither
+    // Accept only color or number or bigOrSmall, not multiple
     const hasColor = !!color;
     const hasNumber = !!number;
-    if (hasColor && hasNumber) {
-      throw new Error("You must bet on either color or number, not both.");
+    const hasBigOrSmall = !!bigOrSmall;
+
+    if ([hasColor, hasNumber, hasBigOrSmall].filter(Boolean).length > 1) {
+      throw new Error("You must bet on either color, number, or big/small - not multiple.");
     }
-    if (!hasColor && !hasNumber) {
-      throw new Error(
-        "You must bet on either color or number. Both cannot be null."
-      );
+    if ([hasColor, hasNumber, hasBigOrSmall].filter(Boolean).length === 0) {
+      throw new Error("You must bet on either color, number, or big/small.");
     }
 
     // Validate betting is open
@@ -691,7 +734,7 @@ export class BowGameService {
     }
 
     const now = getIstDate();
-    const period = await prisma.bowGamePeriod.findUnique({
+    const period = await prisma.thirtySecondGamePeriod.findUnique({
       where: { id: this.currentPeriod.id },
     });
 
@@ -707,10 +750,10 @@ export class BowGameService {
       throw new Error("Betting time has ended for this period");
     }
 
-    // Get game settings
+    // Get game settings (shared)
     const settings = await prisma.gameSettings.findFirst();
     if (!settings) {
-      throw new Error("BOW Game settings not found");
+      throw new Error("Game settings not found");
     }
 
     // Validate bet amount
@@ -744,11 +787,13 @@ export class BowGameService {
 
     let betDescription = "";
     if (color) {
-      betDescription = `BOW Bet on color ${color} - Period ${period.periodId}`;
+      betDescription = `30s Bet on color ${color} - Period ${period.periodId}`;
     }
-
     if (number) {
-      betDescription = `BOW Bet on number ${number} - Period ${period.periodId}`;
+      betDescription = `30s Bet on number ${number} - Period ${period.periodId}`;
+    }
+    if (bigOrSmall) {
+      betDescription = `30s Bet on ${bigOrSmall} - Period ${period.periodId}`;
     }
 
     // Create transaction record for debit
@@ -765,13 +810,14 @@ export class BowGameService {
     });
 
     // Create bet record
-    const bet = await prisma.bowBet.create({
+    const bet = await prisma.thirtySecondBet.create({
       data: {
         userId,
         periodId: period.periodId,
         gamePeriodId: period.id,
         color: hasColor ? color : (null as any),
         number: hasNumber ? number : (null as any),
+        bigOrSmall: hasBigOrSmall ? bigOrSmall : (null as any),
         amount,
         status: "pending",
       },
@@ -780,6 +826,7 @@ export class BowGameService {
     // Update color totals and number totals
     let colorField: string | null = null;
     let numberField: string | null = null;
+    let bigSmallField: string | null = null;
 
     if (hasColor && color) {
       if (color === "green") colorField = "totalGreenBets";
@@ -817,10 +864,12 @@ export class BowGameService {
         colorField = "totalGreenBets";
         numberField = "totalNineBets";
       }
+    } else if (hasBigOrSmall && bigOrSmall) {
+      bigSmallField = bigOrSmall === "big" ? "totalBigBets" : "totalSmallBets";
     }
 
     if (colorField) {
-      await prisma.bowGamePeriod.update({
+      await prisma.thirtySecondGamePeriod.update({
         where: { id: period.id },
         data: {
           [colorField]: { increment: amount },
@@ -829,7 +878,7 @@ export class BowGameService {
     }
 
     if (numberField) {
-      await prisma.bowGamePeriod.update({
+      await prisma.thirtySecondGamePeriod.update({
         where: { id: period.id },
         data: {
           [numberField]: { increment: amount },
@@ -837,9 +886,16 @@ export class BowGameService {
       });
     }
 
-    console.log(
-      `🎲 [BOW] User ${userId} placed ${betDescription} of ${amount}`
-    );
+    if (bigSmallField) {
+      await prisma.thirtySecondGamePeriod.update({
+        where: { id: period.id },
+        data: {
+          [bigSmallField]: { increment: amount },
+        },
+      });
+    }
+
+    console.log(`🎲 [30s] User ${userId} placed ${betDescription} of ${amount}`);
 
     // Process referral commissions
     await this.processReferralCommissions(userId, bet.id, amount, settings);
@@ -926,7 +982,7 @@ export class BowGameService {
                 userId: commission.userId,
                 fromUserId: bettorUserId,
                 betId,
-                gameType: "bow",
+                gameType: "thirtySecond",
                 amount: commissionAmount,
                 percentage: commission.percentage,
                 level: commission.level,
@@ -939,7 +995,7 @@ export class BowGameService {
                 type: "referral_commission",
                 amount: commissionAmount,
                 status: "completed",
-                description: `L${commission.level} BOW Referral commission from bet #${betId}`,
+                description: `L${commission.level} 30s Referral commission from bet #${betId}`,
                 referenceId: betId.toString(),
                 balanceBefore: referrer.balance,
                 balanceAfter: newBalance,
@@ -947,17 +1003,15 @@ export class BowGameService {
             });
 
             console.log(
-              `💰 [BOW] L${commission.level} Commission: User ${
+              `💰 [30s] L${commission.level} Commission: User ${
                 commission.userId
-              } earned ₹${commissionAmount.toFixed(
-                2
-              )} from User ${bettorUserId}'s bet`
+              } earned ₹${commissionAmount.toFixed(2)} from User ${bettorUserId}'s bet`
             );
           }
         }
       }
     } catch (error) {
-      console.error("[BOW] Error processing referral commissions:", error);
+      console.error("[30s] Error processing referral commissions:", error);
     }
   }
 
@@ -1000,6 +1054,8 @@ export class BowGameService {
             totalSevenBets,
             totalEightBets,
             totalNineBets,
+            totalBigBets,
+            totalSmallBets,
             ...filteredCp
           } = cp;
 
@@ -1011,11 +1067,11 @@ export class BowGameService {
           };
         }
       } catch (err) {
-        console.warn("[BOW] Warning reading in-memory currentPeriod:", err);
+        console.warn("[30s] Warning reading in-memory currentPeriod:", err);
       }
     }
 
-    let period = await prisma.bowGamePeriod.findFirst({
+    let period = await prisma.thirtySecondGamePeriod.findFirst({
       where: {
         startTime: { lte: now },
         endTime: { gt: now },
@@ -1050,6 +1106,8 @@ export class BowGameService {
       totalSevenBets,
       totalEightBets,
       totalNineBets,
+      totalBigBets,
+      totalSmallBets,
       ...filteredPeriod
     } = period;
     return {
@@ -1064,7 +1122,7 @@ export class BowGameService {
    * Get user's bets for a specific period
    */
   async getUserBetsForPeriod(userId: number, periodId: string) {
-    return await prisma.bowBet.findMany({
+    return await prisma.thirtySecondBet.findMany({
       where: {
         userId,
         periodId,
@@ -1084,13 +1142,15 @@ export class BowGameService {
     offset: number = 0
   ) {
     const [items, total] = await Promise.all([
-      prisma.bowBet.findMany({
+      prisma.thirtySecondBet.findMany({
         where: { userId },
         include: {
           gamePeriod: {
             select: {
               periodId: true,
               winningColor: true,
+              winningNumber: true,
+              winningBigOrSmall: true,
               status: true,
               completedAt: true,
             },
@@ -1102,7 +1162,7 @@ export class BowGameService {
         skip: offset,
         take: limit,
       }),
-      prisma.bowBet.count({ where: { userId } }),
+      prisma.thirtySecondBet.count({ where: { userId } }),
     ]);
 
     return { items, total };
@@ -1113,7 +1173,7 @@ export class BowGameService {
    */
   async getPeriodHistory(limit: number = 50, offset: number = 0) {
     const [items, total] = await Promise.all([
-      prisma.bowGamePeriod.findMany({
+      prisma.thirtySecondGamePeriod.findMany({
         where: {
           status: "completed",
         },
@@ -1123,14 +1183,35 @@ export class BowGameService {
         skip: offset,
         take: limit,
       }),
-      prisma.bowGamePeriod.count({ where: { status: "completed" } }),
+      prisma.thirtySecondGamePeriod.count({ where: { status: "completed" } }),
     ]);
 
-    return { items, total };
+    const sanitizedItems = items.map(
+      ({
+        totalRedBets,
+        totalGreenBets,
+        totalPurpleBets,
+        totalZeroBets,
+        totalOneBets,
+        totalTwoBets,
+        totalThreeBets,
+        totalFourBets,
+        totalFiveBets,
+        totalSixBets,
+        totalSevenBets,
+        totalEightBets,
+        totalNineBets,
+        totalBigBets,
+        totalSmallBets,
+        ...rest
+      }) => rest
+    );
+
+    return { items: sanitizedItems, total };
   }
 
   /**
-   * Get game settings
+   * Get game settings (shared)
    */
   async getGameSettings() {
     return await prisma.gameSettings.findFirst();
@@ -1151,4 +1232,4 @@ export class BowGameService {
   }
 }
 
-export const bowGameService = new BowGameService();
+export const thirtySecondGameService = new ThirtySecondGameService();

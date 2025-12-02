@@ -9,8 +9,10 @@ import { databaseService } from './services/databaseService';
 import { adminRoutes } from './routes/admin';
 import { gameService } from './services/gameService';
 import { bowGameService } from './services/bowGameService';
+import { thirtySecondGameService } from './services/thirtySecondGameService';
 import { paymentRoutes } from './routes/payment';
 import { bowGameRoutes } from './routes/bowGame';
+import { thirtySecondGameRoutes } from './routes/thirtySecondGame';
 
 // Initialize Express app
 const app: Express = express();
@@ -37,45 +39,6 @@ app.get('/', (req, res) => {
     status: 'active',
     version: '1.0.0',
     environment: config.nodeEnv,
-    // endpoints: {
-    //   signup: 'POST /api/auth/signup/initiate',
-    //   completeSignup: 'POST /api/auth/signup/complete',
-    //   login: 'POST /api/auth/login',
-    //   refreshToken: 'POST /api/auth/refresh-token',
-    //   logout: 'POST /api/auth/logout',
-    //   passwordResetInitiate: 'POST /api/auth/password-reset/initiate',
-    //   passwordResetComplete: 'POST /api/auth/password-reset/complete',
-    //   profile: 'GET /api/auth/profile',
-    //   verifyToken: 'GET /api/auth/verify-token',
-    //   updateProfile: 'PUT /api/user/profile',
-    //   getBankAccounts: 'GET /api/user/bank-accounts',
-    //   addBankAccount: 'POST /api/user/bank-accounts',
-    //   updateBankAccount: 'PUT /api/user/bank-accounts/:id',
-    //   deleteBankAccount: 'DELETE /api/user/bank-accounts/:id',
-    //   submitWithdrawal: 'POST /api/user/withdrawal-requests',
-    //   getWithdrawals: 'GET /api/user/withdrawal-requests',
-    //   cancelWithdrawal: 'DELETE /api/user/withdrawal-requests/:id',
-    //   getTransactions: 'GET /api/user/transactions',
-    //   getCurrentPeriod: 'GET /api/game/period/current',
-    //   placeBet: 'POST /api/game/bet',
-    //   getUserBets: 'GET /api/game/bet/current',
-    //   getBetHistory: 'GET /api/game/bet/history',
-    //   getPeriodHistory: 'GET /api/game/period/history',
-    //   getGameSettings: 'GET /api/game/settings',
-    //   updateGameSettings: 'PUT /api/game/settings',
-    //   // callbackURL: 'POST /api/payment/callback',
-    //   addRecharge: 'POST /api/payment/recharge',
-    //   // Admin endpoints
-    //   adminLogin: 'POST /api/admin/login',
-    //   adminUsers: 'GET /api/admin/users',
-    //   adminUserDetail: 'GET /api/admin/user/:id',
-    //   adminBanUser: 'PUT /api/admin/user/:id/ban',
-    //   adminUserSummary: 'GET /api/admin/user/:id/summary',
-    //   adminDashboard: 'GET /api/admin/dashboard',
-    //   adminPeriods: 'GET /api/admin/periods',
-    //   adminGetSettings: 'GET /api/admin/settings',
-    //   adminUpdateSettings: 'PUT /api/admin/settings'
-    // }
   });
 });
 
@@ -84,6 +47,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/game', gameRoutes);
 app.use('/api/bow-game', bowGameRoutes);
+app.use('/api/thirty-second-game', thirtySecondGameRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/payment', paymentRoutes);
 
@@ -119,6 +83,9 @@ async function startServer() {
     // Initialize BOW game service
     await bowGameService.initialize();
 
+    // Initialize Thirty Second game service
+    await thirtySecondGameService.initialize();
+
     const server = app.listen(PORT, '0.0.0.0');
 
     server.on('listening', () => {
@@ -142,6 +109,7 @@ process.on('SIGTERM', async () => {
   console.log('🔄 Shutting down gracefully...');
   gameService.cleanup();
   bowGameService.cleanup();
+  thirtySecondGameService.cleanup();
   await databaseService.disconnect();
   process.exit(0);
 });
@@ -150,6 +118,7 @@ process.on('SIGINT', async () => {
   console.log('🔄 Shutting down gracefully...');
   gameService.cleanup();
   bowGameService.cleanup();
+  thirtySecondGameService.cleanup();
   await databaseService.disconnect();
   process.exit(0);
 });

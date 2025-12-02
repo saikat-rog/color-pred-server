@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authenticateToken } from '../middleware/auth';
+import { authenticateToken, ensureNotBanned } from '../middleware/auth';
 import * as bowGameController from '../controllers/bowGameController';
 
 const router = Router();
@@ -16,21 +16,21 @@ router.get('/period/current', bowGameController.getCurrentPeriod);
  * @desc    Place a bet in BOW game
  * @access  Private
  */
-router.post('/bet', authenticateToken, bowGameController.placeBet);
+router.post('/bet', authenticateToken, ensureNotBanned, bowGameController.placeBet);
 
 /**
  * @route   GET /api/bow-game/bet/current
  * @desc    Get user's bets for current period
  * @access  Private
  */
-router.get('/bet/current', authenticateToken, bowGameController.getUserBetsForCurrentPeriod);
+router.get('/bet/current', authenticateToken, ensureNotBanned, bowGameController.getUserBetsForCurrentPeriod);
 
 /**
  * @route   GET /api/bow-game/bet/history
  * @desc    Get user's bet history
  * @access  Private
  */
-router.get('/bet/history', authenticateToken, bowGameController.getUserBetHistory);
+router.get('/bet/history', authenticateToken, ensureNotBanned, bowGameController.getUserBetHistory);
 
 /**
  * @route   GET /api/bow-game/period/history

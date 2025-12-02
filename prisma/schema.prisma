@@ -30,7 +30,7 @@ model User {
   referrals     User[]   @relation("UserReferrals")
   referralCommissions ReferralCommission[]
   bowBets       BowBet[]
-  bowReferralCommissions BowReferralCommission[]
+  thirtySecondBets ThirtySecondBet[]
 
   @@map("users")
 }
@@ -182,6 +182,12 @@ model GameSettings {
   id                    Int      @id @default(autoincrement())
   periodDuration        Int      @default(180) @map("period_duration") // in seconds (3 minutes)
   bettingDuration       Int      @default(150) @map("betting_duration") // in seconds (2:30 minutes)
+  bowPeriodDuration        Int      @default(60) @map("bow_period_duration") // in seconds (5 minutes for BOW game)
+  bowBettingDuration       Int      @default(55) @map("bow_betting_duration") // in seconds (4:30 minutes for BOW game)
+  thirtySecondPeriodDuration Int      @default(30) @map("thirty_second_period_duration") // in seconds (30 seconds period after main game)
+  thirtySecondBettingDuration  Int      @default(25) @map("thirty_second_betting_duration") // in seconds (25 seconds betting time for 30 sec period)
+  oneMinutePeriodDuration Int      @default(60) @map("one_minute_period_duration") // in seconds (1 minute period after main game)
+  oneMinuteBettingDuration  Int      @default(55) @map("one_minute_betting_duration") // in seconds (50 seconds betting time for 1 min period)
   winMultiplier         Float    @default(1.8) @map("win_multiplier") // multiplier for winning bets
   winMultiplierForNumberBet   Float    @default(9.0) @map("win_multiplier_for_number_bet") // multiplier for winning number bets
   winMultiplierForNumberBetOnZeroOrFive   Float    @default(5.0) @map("win_multiplier_for_number_bet_on_zero_or_five") // multiplier for winning number bets on zero or five
@@ -265,12 +271,13 @@ model Bet {
   @@map("bets")
 }
 
-// Referral commission model - tracks commissions earned from referrals
+// Referral commission model - tracks commissions earned from referrals (shared across all games)
 model ReferralCommission {
   id              Int      @id @default(autoincrement())
   userId          Int      @map("user_id") // The user who earned the commission
   fromUserId      Int      @map("from_user_id") // The user whose bet generated the commission
   betId           Int      @map("bet_id") // The bet that generated the commission
+  gameType        String   @default("main") @map("game_type") // "main", "bow", "thirtySecond"
   amount          Float    // Commission amount earned
   percentage      Float    // Percentage used for this commission
   level           Int      // Referral level (1, 2, or 3)
@@ -282,6 +289,7 @@ model ReferralCommission {
   @@index([userId])
   @@index([fromUserId])
   @@index([betId])
+  @@index([gameType])
   @@index([createdAt])
   @@map("referral_commissions")
 }
@@ -318,26 +326,26 @@ model RequestLog {
 // ============================================
 
 // BOW Game settings - separate from main game settings
-model BowGameSettings {
-  id                    Int      @id @default(autoincrement())
-  periodDuration        Int      @default(300) @map("period_duration") // in seconds (5 minutes default, different from main game)
-  bettingDuration       Int      @default(270) @map("betting_duration") // in seconds (4:30 minutes)
-  winMultiplier         Float    @default(1.8) @map("win_multiplier")
-  winMultiplierForNumberBet   Float    @default(9.0) @map("win_multiplier_for_number_bet")
-  winMultiplierForNumberBetOnZeroOrFive   Float    @default(5.0) @map("win_multiplier_for_number_bet_on_zero_or_five")
-  minBetAmount          Float    @default(10) @map("min_bet_amount")
-  maxBetAmount          Float    @default(10000000000) @map("max_bet_amount")
-  referralCommissionPercentage1  Float    @default(1.0) @map("referral_commission_l1")
-  referralCommissionPercentage2  Float    @default(0.5) @map("referral_commission_l2")
-  referralCommissionPercentage3  Float    @default(0.25) @map("referral_commission_l3")
-  referralSignupBonusInRs   Float    @default(1.0) @map("referral_signup_bonus")
-  minRechargeForBonus   Float    @default(500.0) @map("min_recharge_for_bonus")
-  minRechargeAmount    Float    @default(200.0) @map("min_recharge_amount")
-  maxRechargeAmount    Float    @default(50000.00) @map("max_recharge_amount")
-  updatedAt             DateTime @updatedAt @map("updated_at")
+// model BowGameSettings {
+//   id                    Int      @id @default(autoincrement())
+//   periodDuration        Int      @default(300) @map("period_duration") // in seconds (5 minutes default, different from main game)
+//   bettingDuration       Int      @default(270) @map("betting_duration") // in seconds (4:30 minutes)
+//   winMultiplier         Float    @default(1.8) @map("win_multiplier")
+//   winMultiplierForNumberBet   Float    @default(9.0) @map("win_multiplier_for_number_bet")
+//   winMultiplierForNumberBetOnZeroOrFive   Float    @default(5.0) @map("win_multiplier_for_number_bet_on_zero_or_five")
+//   minBetAmount          Float    @default(10) @map("min_bet_amount")
+//   maxBetAmount          Float    @default(10000000000) @map("max_bet_amount")
+//   referralCommissionPercentage1  Float    @default(1.0) @map("referral_commission_l1")
+//   referralCommissionPercentage2  Float    @default(0.5) @map("referral_commission_l2")
+//   referralCommissionPercentage3  Float    @default(0.25) @map("referral_commission_l3")
+//   referralSignupBonusInRs   Float    @default(1.0) @map("referral_signup_bonus")
+//   minRechargeForBonus   Float    @default(500.0) @map("min_recharge_for_bonus")
+//   minRechargeAmount    Float    @default(200.0) @map("min_recharge_amount")
+//   maxRechargeAmount    Float    @default(50000.00) @map("max_recharge_amount")
+//   updatedAt             DateTime @updatedAt @map("updated_at")
 
-  @@map("bow_game_settings")
-}
+//   @@map("bow_game_settings")
+// }
 
 // BOW Game period model - separate periods from main game
 model BowGamePeriod {
@@ -401,23 +409,68 @@ model BowBet {
   @@map("bow_bets")
 }
 
-// BOW Referral commission model - separate tracking for BOW game commissions
-model BowReferralCommission {
-  id              Int      @id @default(autoincrement())
-  userId          Int      @map("user_id") // The user who earned the commission
-  fromUserId      Int      @map("from_user_id") // The user whose bet generated the commission
-  betId           Int      @map("bet_id") // The BOW bet that generated the commission
-  amount          Float    // Commission amount earned
-  percentage      Float    // Percentage used for this commission
-  level           Int      // Referral level (1, 2, or 3)
-  createdAt       DateTime @default(now()) @map("created_at")
+// Thirty Second Game period model
+model ThirtySecondGamePeriod {
+  id              Int       @id @default(autoincrement())
+  periodId        String    @unique @map("period_id") // Format: YYYYMMDD0001 (4 digits for 30s periods)
+  startTime       DateTime  @map("start_time")
+  endTime         DateTime  @map("end_time")
+  bettingEndTime  DateTime  @map("betting_end_time")
+  status          String    @default("not_started") // not_started, active, betting_closed, completed
+  winningColor    Color?    @map("winning_color")
+  winningNumber   Number?   @map("winning_number")
+  winningBigOrSmall BigOrSmall? @map("winning_big_or_small")
+  totalGreenBets  Float     @default(0) @map("total_green_bets")
+  totalPurpleBets Float     @default(0) @map("total_purple_bets")
+  totalRedBets    Float     @default(0) @map("total_red_bets")
+  totalZeroBets   Float     @default(0) @map("total_zero_bets")
+  totalOneBets    Float     @default(0) @map("total_one_bets")
+  totalTwoBets    Float     @default(0) @map("total_two_bets")
+  totalThreeBets  Float     @default(0) @map("total_three_bets")
+  totalFourBets   Float     @default(0) @map("total_four_bets")
+  totalFiveBets   Float     @default(0) @map("total_five_bets")
+  totalSixBets    Float     @default(0) @map("total_six_bets")
+  totalSevenBets  Float     @default(0) @map("total_seven_bets")
+  totalEightBets  Float     @default(0) @map("total_eight_bets")
+  totalNineBets   Float     @default(0) @map("total_nine_bets")
+  totalBigBets    Float     @default(0) @map("total_big_bets")
+  totalSmallBets  Float     @default(0) @map("total_small_bets")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  completedAt     DateTime? @map("completed_at")
 
   // Relations
-  user     User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bets ThirtySecondBet[]
+
+  @@index([periodId])
+  @@index([status])
+  @@index([startTime])
+  @@map("thirty_second_game_periods")
+}
+
+// Thirty Second Bet model
+model ThirtySecondBet {
+  id              Int        @id @default(autoincrement())
+  userId          Int        @map("user_id")
+  periodId        String     @map("period_id")
+  gamePeriodId    Int        @map("game_period_id")
+  color           Color?
+  number          Number?
+  bigOrSmall      BigOrSmall? @map("big_or_small")
+  amount          Float
+  status          String     @default("pending") // pending, won, lost
+  winAmount       Float?     @map("win_amount")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  settledAt       DateTime?  @map("settled_at")
+
+  // Relations
+  user        User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gamePeriod  ThirtySecondGamePeriod @relation(fields: [gamePeriodId], references: [id], onDelete: Cascade)
 
   @@index([userId])
-  @@index([fromUserId])
-  @@index([betId])
-  @@index([createdAt])
-  @@map("bow_referral_commissions")
+  @@index([periodId])
+  @@index([gamePeriodId])
+  @@index([status])
+  @@index([gamePeriodId, status])
+  @@index([gamePeriodId, number])
+  @@map("thirty_second_bets")
 }
