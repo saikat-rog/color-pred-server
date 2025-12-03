@@ -726,15 +726,20 @@ export class GameService {
       // 5. Insert transactions (bulk)
       const t4 = Date.now();
       await tx.$executeRawUnsafe(`
-      INSERT INTO transactions (user_id, amount, type, status, created_at)
+      INSERT INTO transactions (transaction_id, user_id, amount, type, status, balance_before, balance_after, created_at, updated_at)
       SELECT 
-        user_id,
-        win_amount,
+        gen_random_uuid(),
+        b.user_id,
+        b.win_amount,
         'bet_win_credit',
         'completed',
+        u.balance - b.win_amount,
+        u.balance,
+        NOW(),
         NOW()
-      FROM bets
-      WHERE game_period_id = ${gamePeriodId} AND status = 'won';
+      FROM bets b
+      JOIN users u ON b.user_id = u.id
+      WHERE b.game_period_id = ${gamePeriodId} AND b.status = 'won';
     `);
       // console.log(`⏱️ Insert transactions: ${Date.now() - t4}ms`);
     });

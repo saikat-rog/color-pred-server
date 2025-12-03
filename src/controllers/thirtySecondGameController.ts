@@ -39,7 +39,7 @@ export const getCurrentPeriod = async (
 export const placeBet = async (req: Request, res: Response): Promise<any> => {
   try {
     const userId = req.user?.userId;
-    const { color, amount, number, bigOrSmall } = req.body;
+    const { color, amount, number, big_or_small } = req.body;
 
     if (!userId) {
       return res.status(401).json({
@@ -48,12 +48,12 @@ export const placeBet = async (req: Request, res: Response): Promise<any> => {
       });
     }
 
-    // Validate input - must have exactly one of color, number, or bigOrSmall
+    // Validate input - must have exactly one of color, number, or big_or_small
     const hasColor = color && ["green", "purple", "red"].includes(color.toLowerCase());
     const hasNumber = number && [
       "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"
     ].includes(number.toLowerCase());
-    const hasBigOrSmall = bigOrSmall && ["big", "small"].includes(bigOrSmall.toLowerCase());
+    const hasBigOrSmall = big_or_small && ["big", "small"].includes(big_or_small.toLowerCase());
 
     if (!hasColor && !hasNumber && !hasBigOrSmall) {
       return res.status(400).json({
@@ -80,8 +80,8 @@ export const placeBet = async (req: Request, res: Response): Promise<any> => {
     }
 
     let bigOrSmallEnum: BigOrSmall | null = null;
-    if (bigOrSmall && typeof bigOrSmall === "string") {
-      const normalized = bigOrSmall.trim().toLowerCase();
+    if (big_or_small && typeof big_or_small === "string") {
+      const normalized = big_or_small.trim().toLowerCase();
       if (["big", "small"].includes(normalized)) {
         bigOrSmallEnum = normalized as BigOrSmall;
       }

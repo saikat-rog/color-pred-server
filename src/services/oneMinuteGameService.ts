@@ -137,7 +137,10 @@ export class OneMinuteGameService {
       const bettingEndTime = new Date(
         periodStart.getTime() + bettingDurationMs
       );
-      const periodId = this.generatePeriodId(periodStart, periodDurationSeconds);
+      const periodId = this.generatePeriodId(
+        periodStart,
+        periodDurationSeconds
+      );
 
       // Check in-memory set instead of database query
       if (!existingPeriodIds.has(periodId)) {
@@ -229,7 +232,10 @@ export class OneMinuteGameService {
       const bettingEndTime = new Date(
         periodStart.getTime() + bettingDurationMs
       );
-      const periodId = this.generatePeriodId(periodStart, periodDurationSeconds);
+      const periodId = this.generatePeriodId(
+        periodStart,
+        periodDurationSeconds
+      );
 
       // Check in-memory set instead of database query
       if (!existingPeriodIds.has(periodId)) {
@@ -293,8 +299,11 @@ export class OneMinuteGameService {
 
     // Calculate period number for the day based on seconds from midnight
     const secondsFromMidnight =
-      date.getUTCHours() * 3600 + date.getUTCMinutes() * 60 + date.getUTCSeconds();
-    const periodNumber = Math.floor(secondsFromMidnight / periodDurationSeconds) + 1;
+      date.getUTCHours() * 3600 +
+      date.getUTCMinutes() * 60 +
+      date.getUTCSeconds();
+    const periodNumber =
+      Math.floor(secondsFromMidnight / periodDurationSeconds) + 1;
 
     // Use 4 digits since 1-minute periods = 1440 periods per day
     return `${year}${month}${day}${String(periodNumber).padStart(4, "0")}`;
@@ -622,7 +631,12 @@ export class OneMinuteGameService {
     await this.startOrResumePeriod();
 
     // Process all bets AFTER starting next period
-    await this.settleBets(period.id, winningColor, winningNumber, winningBigOrSmall);
+    await this.settleBets(
+      period.id,
+      winningColor,
+      winningNumber,
+      winningBigOrSmall
+    );
   }
 
   /**
@@ -693,15 +707,20 @@ export class OneMinuteGameService {
 
       // 5. Insert transactions (bulk)
       await tx.$executeRawUnsafe(`
-      INSERT INTO transactions (user_id, amount, type, status, created_at)
+      INSERT INTO transactions (transaction_id, user_id, amount, type, status, balance_before, balance_after, created_at, updated_at)
       SELECT 
-        user_id,
-        win_amount,
+        gen_random_uuid(),
+        b.user_id,
+        b.win_amount,
         'bet_win_credit',
         'completed',
+        u.balance - b.win_amount,
+        u.balance,
+        NOW(),
         NOW()
-      FROM one_minute_bets
-      WHERE game_period_id = ${gamePeriodId} AND status = 'won';
+      FROM one_minute_bets b
+      JOIN users u ON b.user_id = u.id
+      WHERE b.game_period_id = ${gamePeriodId} AND b.status = 'won';
     `);
     });
   }
@@ -722,7 +741,9 @@ export class OneMinuteGameService {
     const hasBigOrSmall = !!bigOrSmall;
 
     if ([hasColor, hasNumber, hasBigOrSmall].filter(Boolean).length > 1) {
-      throw new Error("You must bet on either color, number, or big/small - not multiple.");
+      throw new Error(
+        "You must bet on either color, number, or big/small - not multiple."
+      );
     }
     if ([hasColor, hasNumber, hasBigOrSmall].filter(Boolean).length === 0) {
       throw new Error("You must bet on either color, number, or big/small.");
@@ -1005,7 +1026,9 @@ export class OneMinuteGameService {
             console.log(
               `💰 [1m] L${commission.level} Commission: User ${
                 commission.userId
-              } earned ₹${commissionAmount.toFixed(2)} from User ${bettorUserId}'s bet`
+              } earned ₹${commissionAmount.toFixed(
+                2
+              )} from User ${bettorUserId}'s bet`
             );
           }
         }
