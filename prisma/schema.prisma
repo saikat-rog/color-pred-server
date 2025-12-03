@@ -31,6 +31,7 @@ model User {
   referralCommissions ReferralCommission[]
   bowBets       BowBet[]
   thirtySecondBets ThirtySecondBet[]
+  oneMinuteBets OneMinuteBet[]
 
   @@map("users")
 }
@@ -473,4 +474,74 @@ model ThirtySecondBet {
   @@index([gamePeriodId, status])
   @@index([gamePeriodId, number])
   @@map("thirty_second_bets")
+}
+
+// ============================================
+// ONE MINUTE GAME MODELS
+// ============================================
+
+// One Minute Game period model
+model OneMinuteGamePeriod {
+  id              Int       @id @default(autoincrement())
+  periodId        String    @unique @map("period_id") // Format: YYYYMMDD0001 (4 digits for 1-min periods)
+  startTime       DateTime  @map("start_time")
+  endTime         DateTime  @map("end_time")
+  bettingEndTime  DateTime  @map("betting_end_time")
+  status          String    @default("not_started") // not_started, active, betting_closed, completed
+  winningColor    Color?    @map("winning_color")
+  winningNumber   Number?   @map("winning_number")
+  winningBigOrSmall BigOrSmall? @map("winning_big_or_small")
+  totalGreenBets  Float     @default(0) @map("total_green_bets")
+  totalPurpleBets Float     @default(0) @map("total_purple_bets")
+  totalRedBets    Float     @default(0) @map("total_red_bets")
+  totalZeroBets   Float     @default(0) @map("total_zero_bets")
+  totalOneBets    Float     @default(0) @map("total_one_bets")
+  totalTwoBets    Float     @default(0) @map("total_two_bets")
+  totalThreeBets  Float     @default(0) @map("total_three_bets")
+  totalFourBets   Float     @default(0) @map("total_four_bets")
+  totalFiveBets   Float     @default(0) @map("total_five_bets")
+  totalSixBets    Float     @default(0) @map("total_six_bets")
+  totalSevenBets  Float     @default(0) @map("total_seven_bets")
+  totalEightBets  Float     @default(0) @map("total_eight_bets")
+  totalNineBets   Float     @default(0) @map("total_nine_bets")
+  totalBigBets    Float     @default(0) @map("total_big_bets")
+  totalSmallBets  Float     @default(0) @map("total_small_bets")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  completedAt     DateTime? @map("completed_at")
+
+  // Relations
+  bets OneMinuteBet[]
+
+  @@index([periodId])
+  @@index([status])
+  @@index([startTime])
+  @@map("one_minute_game_periods")
+}
+
+// One Minute Bet model
+model OneMinuteBet {
+  id              Int        @id @default(autoincrement())
+  userId          Int        @map("user_id")
+  periodId        String     @map("period_id")
+  gamePeriodId    Int        @map("game_period_id")
+  color           Color?
+  number          Number?
+  bigOrSmall      BigOrSmall? @map("big_or_small")
+  amount          Float
+  status          String     @default("pending") // pending, won, lost
+  winAmount       Float?     @map("win_amount")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  settledAt       DateTime?  @map("settled_at")
+
+  // Relations
+  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gamePeriod  OneMinuteGamePeriod @relation(fields: [gamePeriodId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([periodId])
+  @@index([gamePeriodId])
+  @@index([status])
+  @@index([gamePeriodId, status])
+  @@index([gamePeriodId, number])
+  @@map("one_minute_bets")
 }

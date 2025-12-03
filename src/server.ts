@@ -10,9 +10,11 @@ import { adminRoutes } from './routes/admin';
 import { gameService } from './services/gameService';
 import { bowGameService } from './services/bowGameService';
 import { thirtySecondGameService } from './services/thirtySecondGameService';
+import { oneMinuteGameService } from './services/oneMinuteGameService';
 import { paymentRoutes } from './routes/payment';
 import { bowGameRoutes } from './routes/bowGame';
 import { thirtySecondGameRoutes } from './routes/thirtySecondGame';
+import { oneMinuteGameRoutes } from './routes/oneMinuteGame';
 
 // Initialize Express app
 const app: Express = express();
@@ -48,6 +50,7 @@ app.use('/api/user', userRoutes);
 app.use('/api/game', gameRoutes);
 app.use('/api/bow-game', bowGameRoutes);
 app.use('/api/thirty-second-game', thirtySecondGameRoutes);
+app.use('/api/one-minute-game', oneMinuteGameRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/payment', paymentRoutes);
 
@@ -86,6 +89,9 @@ async function startServer() {
     // Initialize Thirty Second game service
     await thirtySecondGameService.initialize();
 
+    // Initialize One Minute game service
+    await oneMinuteGameService.initialize();
+
     const server = app.listen(PORT, '0.0.0.0');
 
     server.on('listening', () => {
@@ -110,6 +116,7 @@ process.on('SIGTERM', async () => {
   gameService.cleanup();
   bowGameService.cleanup();
   thirtySecondGameService.cleanup();
+  oneMinuteGameService.cleanup();
   await databaseService.disconnect();
   process.exit(0);
 });
@@ -119,6 +126,7 @@ process.on('SIGINT', async () => {
   gameService.cleanup();
   bowGameService.cleanup();
   thirtySecondGameService.cleanup();
+  oneMinuteGameService.cleanup();
   await databaseService.disconnect();
   process.exit(0);
 });
